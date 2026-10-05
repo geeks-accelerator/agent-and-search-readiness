@@ -9,6 +9,7 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 - `src/helpers.mjs`: pure helpers the checks share, tested without a network. Internal: the package exports only `src/audit.mjs`.
 - `bin/readiness-audit.mjs`: the command-line tool.
 - `test/`: guard tests. `npm test` runs them.
+- `docs/adopting.md`: the switch-over steps a project's agent follows. `docs/usability-test.md`: the T5 procedure.
 
 ## Rules
 

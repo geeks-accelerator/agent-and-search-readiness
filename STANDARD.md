@@ -733,6 +733,8 @@ Read it with three caveats:
 
 ## 14. Adopting the standard in a repo
 
+Step-by-step instructions for a project's coding agent: [docs/adopting.md](docs/adopting.md).
+
 - **Point to the standard instead of copying it,** so your agents read one standard, not a fork that drifts:
   ```markdown
   # Agent and Search Readiness

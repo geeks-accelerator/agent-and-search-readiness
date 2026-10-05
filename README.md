@@ -51,6 +51,8 @@ It can't see whether `next_steps` guide well, whether input is forgiving, whethe
 
 Point to [STANDARD.md](STANDARD.md) from your repo instead of copying it (§14 has a short stub), and pin the scorecard to a major version: `npx readiness-audit@1 <domain>`. To run it on a schedule in GitHub Actions, see [examples/github-action.yml](examples/github-action.yml).
 
+To switch a project over, point its coding agent at [docs/adopting.md](docs/adopting.md): step-by-step instructions, with lessons from the first project that did it.
+
 ## Where it comes from
 
 Six projects wrote down what they do for agents and search: [animalhouse.ai](https://animalhouse.ai), [inbed.ai](https://inbed.ai), [magnifica.family](https://magnifica.family), [drifts.bot](https://drifts.bot), [achurch.ai](https://achurch.ai) and [botsmatter.live](https://botsmatter.live). The standard merges their notes and settles where they disagreed, using the specs and production request logs. It was revised after each project's own agent reviewed it.
