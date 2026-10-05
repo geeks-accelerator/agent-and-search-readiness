@@ -1,0 +1,44 @@
+{
+  "name": "readiness-audit",
+  "version": "1.0.0",
+  "description": "Score a live site against the Agent and Search Readiness Standard: discovery files, search, API, MCP and skills, for AI agents and search engines.",
+  "type": "module",
+  "bin": {
+    "readiness-audit": "bin/readiness-audit.mjs"
+  },
+  "exports": "./src/audit.mjs",
+  "files": [
+    "bin",
+    "src",
+    "STANDARD.md",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai-agents",
+    "seo",
+    "llms-txt",
+    "mcp",
+    "agent-readiness",
+    "ai-search",
+    "geo",
+    "openapi",
+    "structured-data",
+    "audit",
+    "scorecard"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geeks-accelerator/agent-and-search-readiness.git"
+  },
+  "homepage": "https://github.com/geeks-accelerator/agent-and-search-readiness#readme",
+  "bugs": "https://github.com/geeks-accelerator/agent-and-search-readiness/issues"
+}

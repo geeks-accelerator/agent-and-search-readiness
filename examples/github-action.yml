@@ -1,0 +1,18 @@
+# Copy to .github/workflows/readiness.yml and replace example.com with your domain.
+# Runs the scorecard weekly and on demand. It fails when a required check fails.
+name: Agent and search readiness
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Score the live site
+        run: npx --yes readiness-audit@1 example.com
