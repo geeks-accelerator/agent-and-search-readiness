@@ -121,6 +121,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - **Keep the rules the same for every crawler.** A crawler obeys only the group that names it, and falls back to `*` only when no group does (RFC 9309 §2.2.1). A `User-agent: GPTBot` group that lacks a `Disallow` from the `*` group lets that bot crawl what you meant to block. One group listing `*` and every named crawler is simplest (achurch.ai). Repeating the full rules in every group also works (botsmatter.live).
 - **Disallow what has side effects or private data.** For read-only API endpoints that live-fetch agents need (public stats, a self-documenting `GET /api/auth/register`), allow the fetch and send `X-Robots-Tag: noindex` on the JSON instead, so search engines skip it without blocking agents (botsmatter, inbed).
 - **Allow your share-card path** (`/api/og/` at animalhouse, `/og/` at botsmatter), and add the `Sitemap:` line.
+- **Purge it from your CDN after a change.** Cloudflare caches robots.txt by default, so crawlers keep the old rules until the cached copy expires. The scorecard says when it read a cached copy.
 - Naming AI crawlers and stating a Content-Signal policy is D15 (recommended).
 - **Done when** the scorecard passes D1.
 
@@ -187,6 +188,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 **D8 Markdown for agents**
 - `Accept: text/markdown` and a `.md` URL both return the page as markdown.
 - Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
+- Next.js 14.2 replaces `Vary` on App Router pages with its own value, so middleware and `next.config` headers can't add `Accept` to the HTML. Add it at the edge (a CDN response header rule), and send it from the markdown route yourself (animalhouse.ai).
 - Make links absolute, and link back to the HTML page as canonical.
 - Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
 - Negotiate in front of prerendered pages too, or they ignore it (magnifica).

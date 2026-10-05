@@ -9,8 +9,9 @@
 import { lookup, resolveTxt } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote } from './helpers.mjs';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
@@ -136,6 +137,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   const json = (r) => { try { return JSON.parse(r.text); } catch { return null; } };
   const isJson = (r) => /json/.test(r.type) && json(r) !== null;
   const ok = (r) => r.status >= 200 && r.status < 300;
+  const cached = (r) => cdnCacheNote(r.headers);
   const ct = (r) => r.type.split(';')[0] || (r.status ? 'no body' : 'no answer');
   const rpc = (r) => {
     if (/event-stream/.test(r.type)) {
@@ -209,9 +211,9 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
     const id = 'D1', name = 'robots.txt', level = 'required';
     const star = groups.find((g) => g.agents.includes('*'));
     const leaks = star ? groups.filter((g) => g !== star).flatMap((g) => [...star.disallow].filter((d) => !g.disallow.has(d)).map((d) => `${g.agents[0]} skips Disallow ${d}`)) : [];
-    if (!ok(robots)) miss(id, name, level, `/robots.txt answered ${robots.status}`);
-    else if (leaks.length) miss(id, name, level, `named groups drop rules from the * group (a crawler obeys only its own group): ${[...new Set(leaks)].slice(0, 3).join('; ')}`);
-    else if (!sitemapLine) miss(id, name, level, 'no Sitemap line');
+    if (!ok(robots)) miss(id, name, level, `/robots.txt answered ${robots.status}${cached(robots)}`);
+    else if (leaks.length) miss(id, name, level, `named groups drop rules from the * group (a crawler obeys only its own group): ${[...new Set(leaks)].slice(0, 3).join('; ')}${cached(robots)}`);
+    else if (!sitemapLine) miss(id, name, level, `no Sitemap line${cached(robots)}`);
     else pass(id, name, level, `${groups.length} group${groups.length === 1 ? '' : 's'} with consistent rules, Sitemap listed`);
   }
   {
@@ -222,7 +224,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
     if (unsignaled.length) problems.push(`${unsignaled.length} of ${groups.length} group${groups.length === 1 ? '' : 's'} ${unsignaled.length === 1 ? 'has' : 'have'} no Content-Signal (${unsignaled.slice(0, 3).map((g) => g.agents[0]).join(', ')}${unsignaled.length > 3 ? ', ...' : ''})`);
     if (named.length < 3) problems.push(`names ${named.length} of the main AI crawlers`);
     if (!ok(robots)) miss(id, name, level, 'no robots.txt');
-    else if (problems.length) miss(id, name, level, problems.join('; '));
+    else if (problems.length) miss(id, name, level, problems.join('; ') + cached(robots));
     else pass(id, name, level, `${named.length} AI crawlers named, Content-Signal in every group`);
   }
 
@@ -230,17 +232,17 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   {
     const id = 'D2', name = 'sitemap.xml', level = 'required';
     const lastmods = [...sitemap.text.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1].slice(0, 10));
-    if (!ok(sitemap) || !/<urlset|<sitemapindex/.test(sitemap.text)) miss(id, name, level, `/sitemap.xml answered ${sitemap.status}`);
-    else if (!lastmods.length) miss(id, name, level, 'no lastmod dates');
-    else if (new Set(lastmods).size === 1 && lastmods.length > 5) miss(id, name, level, `all ${lastmods.length} lastmod dates are ${lastmods[0]}; use each page's real change date`);
+    if (!ok(sitemap) || !/<urlset|<sitemapindex/.test(sitemap.text)) miss(id, name, level, `/sitemap.xml answered ${sitemap.status}${cached(sitemap)}`);
+    else if (!lastmods.length) miss(id, name, level, `no lastmod dates${cached(sitemap)}`);
+    else if (new Set(lastmods).size === 1 && lastmods.length > 5) miss(id, name, level, `all ${lastmods.length} lastmod dates are ${lastmods[0]}; use each page's real change date${cached(sitemap)}`);
     else pass(id, name, level, `${lastmods.length} URLs with ${new Set(lastmods).size} distinct lastmod dates`);
   }
 
   // ---- D4 llms.txt ----
   {
     const id = 'D4', name = 'llms.txt and llms-full.txt', level = 'required';
-    if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`);
-    else if (!ok(llmsFull)) miss(id, name, level, '/llms-full.txt missing');
+    if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
+    else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
     else pass(id, name, level, `llms.txt ${(llms.text.length / 1024).toFixed(1)} KB, llms-full.txt ${(llmsFull.text.length / 1024).toFixed(0)} KB`);
   }
 
@@ -267,10 +269,10 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
     const id = 'D6', name = 'security.txt', level = 'required';
     const expires = [...security.text.matchAll(/^expires:\s*(.+)$/gim)].map((m) => Date.parse(m[1].trim()));
     const days = expires.length === 1 ? (expires[0] - Date.now()) / 86_400_000 : NaN;
-    if (!ok(security) || !/text\/plain/.test(security.type)) miss(id, name, level, `/.well-known/security.txt answered ${security.status}`);
-    else if (!/^contact:\s*\S/im.test(security.text)) miss(id, name, level, 'no Contact field');
-    else if (expires.length !== 1) miss(id, name, level, `${expires.length} Expires fields (RFC 9116 requires exactly one)`);
-    else if (!(days > 0)) miss(id, name, level, `Expires passed ${Math.round(-days)} days ago`);
+    if (!ok(security) || !/text\/plain/.test(security.type)) miss(id, name, level, `/.well-known/security.txt answered ${security.status}${cached(security)}`);
+    else if (!/^contact:\s*\S/im.test(security.text)) miss(id, name, level, `no Contact field${cached(security)}`);
+    else if (expires.length !== 1) miss(id, name, level, `${expires.length} Expires fields (RFC 9116 requires exactly one)${cached(security)}`);
+    else if (!(days > 0)) miss(id, name, level, `Expires passed ${Math.round(-days)} days ago${cached(security)}`);
     else pass(id, name, level, `Contact present, Expires in ${Math.round(days)} days${days > 366 ? ' (the RFC recommends under a year)' : ''}`);
   }
 
@@ -425,30 +427,34 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   // ---- S1 skill files, on a sample from the skills index ----
   {
     const id = 'S1', name = 'Skill files', level = 'required';
-    const entries = (json(skills)?.skills ?? []).filter((e) => typeof e?.url === 'string');
-    if (!ok(skills) || !entries.length) skip(id, name, level, 'no skills index to sample; check your SKILL.md files in review');
-    else {
-      const sample = entries.length <= 5 ? entries : [0, 1, 2, 3, 4].map((i) => entries[Math.floor((i * entries.length) / 5)]);
+    const listed = json(skills)?.skills;
+    const sample = sampleSkillEntries(listed);
+    if (!ok(skills) || !sample.length) {
+      skip(id, name, level, Array.isArray(listed) && listed.length
+        ? 'the skills index lists no SKILL.md files to sample (archives only); check your SKILL.md files in review'
+        : 'no skills index to sample; check your SKILL.md files in review');
+    } else {
+      // Entry URLs may be relative, and resolve against the index (RFC 3986).
+      const indexUrl = `${BASE}/.well-known/agent-skills/index.json`;
       const files = await Promise.all(sample.map(async (e) => {
-        const url = new URL(e.url, BASE).href;
+        const url = new URL(e.url, indexUrl).href;
         const r = await get(url);
         const fm = r.text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
         const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
-        const folder = url.split('/').slice(-2, -1)[0] ?? '';
-        return { url, status: r.status, text: r.text, name: field('name'), description: field('description'), folder, lines: r.text.split('\n').length };
+        const label = typeof e.name === 'string' && e.name ? e.name : url;
+        return { url, status: r.status, text: r.text, name: field('name'), description: field('description'), entryName: e.name, label, lines: r.text.split('\n').length };
       }));
-      const label = (f) => f.folder || f.url;
-      const unreachable = files.filter((f) => f.status !== 200).map((f) => `${label(f)} (${f.status})`);
+      const unreachable = files.filter((f) => f.status !== 200).map((f) => `${f.label} (${f.status})`);
       const read = files.filter((f) => f.status === 200);
-      const badName = read.filter((f) => !/^(?!-)(?!.*--)[a-z0-9-]{1,64}(?<!-)$/.test(f.name) || (f.folder && f.name !== f.folder)).map(label);
-      const badDesc = read.filter((f) => !f.description || f.description.length > 1024).map(label);
-      const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map(label);
-      const noApi = read.filter((f) => !/openapi|\/docs\/(api|mcp)|https?:\/\/[^\s)]+\/(api|mcp)\b/i.test(f.text)).map(label);
-      const long = read.filter((f) => f.lines > 500).map((f) => `${label(f)} (${f.lines} lines)`);
+      const badName = read.map((f) => [f, skillNameProblem(f)]).filter(([, why]) => why).map(([f, why]) => `${f.label} (${why})`);
+      const badDesc = read.filter((f) => !f.description || f.description.length > 1024).map((f) => f.label);
+      const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map((f) => f.label);
+      const noApi = read.filter((f) => !/openapi|\/docs\/(api|mcp)|https?:\/\/[^\s)]+\/(api|mcp)\b/i.test(f.text)).map((f) => f.label);
+      const long = read.filter((f) => f.lines > 500).map((f) => `${f.label} (${f.lines} lines)`);
       const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
       const problems = [], warns = [];
       if (unreachable.length) problems.push(`skill files that don't load: ${list(unreachable)}`);
-      if (badName.length) problems.push(`names that aren't a lowercase slug matching the folder: ${list(badName)}`);
+      if (badName.length) problems.push(`names that break the spec (a lowercase slug, matching its folder and its index entry): ${list(badName)}`);
       if (badDesc.length) problems.push(`missing or over-long descriptions: ${list(badDesc)}`);
       if (noMap.length) warns.push(`no link to llms.txt: ${list(noMap)}`);
       if (noApi.length) warns.push(`no link to the API or MCP reference: ${list(noApi)}`);
@@ -470,7 +476,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
       if (doc.$schema !== SKILLS_SCHEMA) bad.push(`unrecognized $schema, so clients skip the whole index (${doc.$schema ?? 'none'})`);
       const types = list.filter((s) => !['skill-md', 'archive'].includes(s.type)).length;
       const digests = list.filter((s) => !/^sha256:[0-9a-f]{64}$/.test(s.digest ?? '')).length;
-      const names = list.filter((s) => !/^(?!-)(?!.*--)[a-z0-9-]{1,64}(?<!-)$/.test(s.name ?? '')).length;
+      const names = list.filter((s) => !SKILL_NAME.test(s.name ?? '')).length;
       if (types) bad.push(`${types} entries with a type other than skill-md or archive`);
       if (digests) bad.push(`${digests} entries without a sha256: digest`);
       if (names) bad.push(`${names} names that aren't lowercase slugs`);

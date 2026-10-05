@@ -1,6 +1,6 @@
 {
   "name": "readiness-audit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Score a live site against the Agent and Search Readiness Standard: discovery files, search, API, MCP and skills, for AI agents and search engines.",
   "type": "module",
   "bin": {

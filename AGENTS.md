@@ -6,6 +6,7 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 
 - `STANDARD.md`: the standard. Every item has an ID (D, W, A, M, S, E, T, N plus a number), a level, and a row in the checklist (§15).
 - `src/audit.mjs`: the checks, as a library (`audit`, `score`, `matrix`).
+- `src/helpers.mjs`: pure helpers the checks share, tested without a network. Internal: the package exports only `src/audit.mjs`.
 - `bin/readiness-audit.mjs`: the command-line tool.
 - `test/`: guard tests. `npm test` runs them.
 
