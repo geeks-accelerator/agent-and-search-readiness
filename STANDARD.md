@@ -5,11 +5,11 @@
 **Last verified:** 2026-10-05
 
 > **Start here**
-> 1. Score your site: `npx readiness-audit <domain>`. It needs Node 18 or later and no dependencies.
+> 1. Score your site: `npx readiness-audit <domain>`. It needs Node 20 or later and no dependencies.
 > 2. Check [§3](#3-decide-what-applies) for the items that apply to your project.
 > 3. Fix required failures first. Each line the scorecard prints names an ID and the reason.
 > 4. Then the recommended items. Build a next-level item when your own traffic shows the problem it solves.
-> 5. Run the agent usability test (T5) and report its first-try success rate next to your score.
+> 5. Run the agent usability test (T5, [how](docs/usability-test.md)) and report its first-try success rate next to your score.
 > 6. Re-score monthly.
 
 This is the common standard our projects work toward, published for anyone who builds for agents: how a site gets found by AI agents and by people searching, gets used correctly on the first call, and gives agents a reason to come back. It collects the best practice from six projects, settles the points where they disagreed, and adds higher-value features that most of them don't have yet. An item is here because it's best practice or a spec requires it, whether or not any project has built it. No project meets the whole standard today.
@@ -26,7 +26,7 @@ This is the common standard our projects work toward, published for anyone who b
   - **Only if true**, for surfaces that are right only when you run the matching service.
   - **Next level**, for higher-value features to build when your traffic shows the need.
 - **A project may decline an item** that conflicts with its stated values, such as engagement mechanics at achurch.ai. Record the decision and the reason in the project's CLAUDE.md or docs, and the item counts as met ([principle 9](#1-principles)).
-- **The scorecard checks what's visible from outside:** discovery files, a sample of pages for search, the API's error answers, the hosted MCP edge. It prints pass, warn or fail with the reason, and exits 1 when a required check fails, so it can gate a deploy. `--json` saves results; `--matrix <domains>` writes the status page.
+- **The scorecard checks what's visible from outside:** discovery files, a sample of pages for search, the API's error answers, the hosted MCP edge, and a sample of skill files. It prints pass, warn or fail with the reason, and exits 1 when a required check fails, so it can gate a deploy. `--json` saves results; `--matrix <domains>` writes the status page.
 - **What the scorecard can't see matters most.** It can't see whether `next_steps` guide well, whether input is forgiving, or whether an agent succeeds. Review and tests cover those ([§11](#11-guard-tests)), and the agent usability test (T5) measures them directly. A high score is not the goal.
 
 ---
@@ -474,7 +474,7 @@ The test is whether most of the six projects should do it. These came from one o
   - One skill per job or intent; never reshuffled duplicates.
 - **Keep display titles out of `name`.** ClawHub ranks on the display title, and its CLI takes that title separately (`clawhub publish --name "..."`; animalhouse's publish script passes the H1). So the frontmatter `name` can follow the spec. Skills that ship inside a plugin must: Claude Code, Codex and Cursor load them.
 - **Trigger only on explicit requests, and confirm before anything persistent or public** (registering, publishing, posting, rotating a key). Every skill that publishes needs this, not just most of them. That wording is what passes ClawHub's security audit.
-- **Link the map.** Every skill links llms.txt and the API reference (`/docs/api.md` or `/openapi.json`), because an agent's fetch tool only reads what it's pointed at (D4). At animalhouse, the core skill and both plugin skills linked neither.
+- **Link the map.** Every skill links llms.txt and the API or MCP reference (`/docs/api.md`, `/openapi.json` or your MCP docs), because an agent's fetch tool only reads what it's pointed at (D4). The scorecard checks this on a sample of skills from your index. At animalhouse, the core skill and both plugin skills linked neither.
 - **Serve the raw file** as `text/plain` at a stable URL so an agent can install it with one fetch, plus a `/skills` page. Index them in S2.
 
 ### S3 Marketplaces and per-item skills
@@ -648,6 +648,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - **When:** monthly, and after big API changes.
   - **Report** its first-try success rate next to your score.
   - **Rules:** run it only against your own site, with a test username so analytics filter it out.
+  - **The procedure,** a runner script and the results format are in [docs/usability-test.md](docs/usability-test.md).
 - **T6 Search numbers** (required):
   - Verify the site in Google Search Console and Bing Webmaster Tools, and submit the sitemap to both.
   - Review them monthly: coverage (including "crawled, not indexed"), queries, clicks and click-through rate. Re-check about two weeks after an SEO change (inbed).
@@ -716,7 +717,7 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 Score each site monthly and after big releases, and keep the results where the project's agents can read them:
 
 ```
-npx readiness-audit --matrix site-one.com site-two.com > docs/readiness-status.md
+npx readiness-audit --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
 The page lists every check for every site, the required and recommended scores, and each failure or warning with its reason. Keep it private if it names live bugs; our projects keep theirs in each project's own repo.
@@ -724,7 +725,7 @@ The page lists every check for every site, the required and recommended scores, 
 Read it with three caveats:
 - **It covers only what's visible from outside.** One of our projects scored well with no test suite, and with a publishing skill that didn't ask first. Neither showed in the score.
 - **Compare a project against its own applicable items, not against other projects.** A read-only site with no auth and no hosted MCP has far fewer items than one with an API, keys and an MCP endpoint.
-- **T5 and T6 aren't in it.** The agent usability test (T5) and the search numbers (T6) come from outside the scorecard. Record them next to it.
+- **T5 and T6 come from outside the scorecard.** Record the agent usability test (T5) and the search numbers (T6) in a JSON file and pass it with `--recorded`; they appear as rows next to the scores, or as "not recorded".
 
 ---
 
@@ -800,7 +801,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | M3 | Published to npm, the MCP Registry, Smithery and Glama, one version | R | discovery | test |
 | M4 | Hosted edge: both eras, JSON for every Accept, browser redirect, aliases, logs | R | agents, traffic | score |
 | M5 | Server card at `<endpoint>/server-card`, listed in the AI catalog | Rec | discovery | score |
-| S1 | Spec-compliant SKILL.md files; every publishing skill asks first | R | agents, honesty | review, test |
+| S1 | Spec-compliant SKILL.md files that link llms.txt and the API or MCP reference; every publishing skill asks first | R | agents, honesty | score (sample), review |
 | S2 | Skills discovery index, v0.2.0 | Rec | discovery | score |
 | S3 | ClawHub owners map, per-item skills, slow publishing | Rec | discovery | review |
 | S4 | Plugin bundle for four hosts, generated manifests | Rec | agents | test |

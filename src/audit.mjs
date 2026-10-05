@@ -17,7 +17,7 @@ const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 
 const SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json';
 const CARD_SCHEMA = 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json';
 export const LEVELS = ['required', 'recommended', 'next'];
-const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'A1', 'A2', 'A6', 'A7', 'M1', 'M4', 'D5', 'D7', 'D8', 'D9', 'D10', 'D15', 'A3', 'A4', 'A5', 'M5', 'S2', 'N5', 'N6'];
+const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'A1', 'A2', 'A6', 'A7', 'M1', 'M4', 'S1', 'D5', 'D7', 'D8', 'D9', 'D10', 'D15', 'A3', 'A4', 'A5', 'M5', 'S2', 'N5', 'N6'];
 // Items the scorecard can't see from outside. Each project checks these in review and tests.
 export const REVIEW = [
   ['D3', 'pages read well: server-rendered, unique prose on generated pages (the scorecard checks W1 to W6 on a sample)'],
@@ -33,7 +33,7 @@ export const REVIEW = [
   ['A11', 'public and private stated honestly, one privacy filter'],
   ['M2', 'stdio package: saved key, register guard, rotate, User-Agent'],
   ['M3', 'published to npm, the MCP Registry, Smithery and Glama, one version'],
-  ['S1', 'skill files follow the spec and ask before anything public or permanent'],
+  ['S1', 'skills ask before anything public or permanent (the scorecard checks names, descriptions and links on a sample)'],
   ['S3', 'ClawHub owners map'],
   ['S4', 'plugin bundle with generated manifests'],
   ['E1-E6', 'first-call value, reasons to return, scheduled-agent performance'],
@@ -339,6 +339,43 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
       const id = 'A5', name = 'API reference as markdown', level = 'recommended';
       if (ok(docsMd) && /text\/(markdown|plain)/.test(docsMd.type)) pass(id, name, level, '/docs/api.md');
       else miss(id, name, level, `/docs/api.md answered ${docsMd.status} ${ct(docsMd)}`);
+    }
+  }
+
+  // ---- S1 skill files, on a sample from the skills index ----
+  {
+    const id = 'S1', name = 'Skill files', level = 'required';
+    const entries = (json(skills)?.skills ?? []).filter((e) => typeof e?.url === 'string');
+    if (!ok(skills) || !entries.length) skip(id, name, level, 'no skills index to sample; check your SKILL.md files in review');
+    else {
+      const sample = entries.length <= 5 ? entries : [0, 1, 2, 3, 4].map((i) => entries[Math.floor((i * entries.length) / 5)]);
+      const files = await Promise.all(sample.map(async (e) => {
+        const url = new URL(e.url, BASE).href;
+        const r = await get(url);
+        const fm = r.text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
+        const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
+        const folder = url.split('/').slice(-2, -1)[0] ?? '';
+        return { url, status: r.status, text: r.text, name: field('name'), description: field('description'), folder, lines: r.text.split('\n').length };
+      }));
+      const label = (f) => f.folder || f.url;
+      const unreachable = files.filter((f) => f.status !== 200).map((f) => `${label(f)} (${f.status})`);
+      const read = files.filter((f) => f.status === 200);
+      const badName = read.filter((f) => !/^(?!-)(?!.*--)[a-z0-9-]{1,64}(?<!-)$/.test(f.name) || (f.folder && f.name !== f.folder)).map(label);
+      const badDesc = read.filter((f) => !f.description || f.description.length > 1024).map(label);
+      const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map(label);
+      const noApi = read.filter((f) => !/openapi|\/docs\/(api|mcp)|https?:\/\/[^\s)]+\/(api|mcp)\b/i.test(f.text)).map(label);
+      const long = read.filter((f) => f.lines > 500).map((f) => `${label(f)} (${f.lines} lines)`);
+      const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
+      const problems = [], warns = [];
+      if (unreachable.length) problems.push(`skill files that don't load: ${list(unreachable)}`);
+      if (badName.length) problems.push(`names that aren't a lowercase slug matching the folder: ${list(badName)}`);
+      if (badDesc.length) problems.push(`missing or over-long descriptions: ${list(badDesc)}`);
+      if (noMap.length) warns.push(`no link to llms.txt: ${list(noMap)}`);
+      if (noApi.length) warns.push(`no link to the API or MCP reference: ${list(noApi)}`);
+      if (long.length) warns.push(`over 500 lines: ${list(long)}`);
+      if (problems.length) miss(id, name, level, problems.concat(warns).join('; '));
+      else if (warns.length) record(id, name, level, 'warn', warns.join('; '));
+      else pass(id, name, level, `${read.length} sampled skills follow the spec and link llms.txt and the API or MCP reference`);
     }
   }
 
@@ -683,21 +720,25 @@ export function score(results, level) {
 }
 
 // Markdown status page for several sites, for docs/guides/agent-readiness-status.md.
-export function matrix(reports, command) {
+// `recorded` holds what the scorecard can't measure, per domain:
+// { "example.com": { "T5": { "result": "4 of 5 first try", "date": "2026-10-12" }, "T6": { ... } } }
+export function matrix(reports, command, recorded = {}) {
   const sym = { pass: '✓', warn: '!', fail: '✗', skip: '–' };
   const domains = reports.map((r) => r.domain);
   const ids = reports[0].results.map((r) => [r.id, r.name, r.level]);
   const out = [
-    '# Agent Readiness Status', '',
+    '# Agent and Search Readiness Status', '',
     `Generated ${new Date().toISOString().slice(0, 10)} by \`${command}\` (readiness-audit v${VERSION}). Don't edit it by hand: regenerate it. What each ID means: [the standard](${REPO}/blob/main/STANDARD.md).`, '',
     'The scorecard sees only what is visible from outside a site. Items checked in review and tests (listed at the end) aren\'t in these numbers, so a high score can hide real gaps.', '',
-    'T5, the agent usability test, is required but runs outside this script. No site has run it yet; its first-try success rate belongs next to these scores once it does.', '',
     '✓ pass, ✗ fail, ! warning, – not applicable.', '',
     `| ID | Check | Level | ${domains.join(' | ')} |`, `|---|---|---|${domains.map(() => '---').join('|')}|`,
     ...ids.map(([id, name, level]) => `| ${id} | ${name} | ${level} | ${reports.map((rep) => sym[rep.results.find((r) => r.id === id)?.status ?? 'skip']).join(' | ')} |`),
     `| | **Required passed** | | ${reports.map((rep) => `**${score(rep.results, 'required')}**`).join(' | ')} |`,
     `| | Recommended passed | | ${reports.map((rep) => score(rep.results, 'recommended')).join(' | ')} |`,
-    `| | Hosted MCP endpoint | | ${reports.map((rep) => (rep.hosted_mcp ? 'yes' : 'no')).join(' | ')} |`, '',
+    `| | Hosted MCP endpoint | | ${reports.map((rep) => (rep.hosted_mcp ? 'yes' : 'no')).join(' | ')} |`,
+    ...[['T5', 'Agent usability test (recorded)'], ['T6', 'Search numbers (recorded)']].map(([id, label]) =>
+      `| ${id} | ${label} | required | ${reports.map((rep) => { const x = recorded[rep.domain]?.[id]; return x ? `${String(x.result ?? '').replace(/\|/g, '/')}${x.date ? ` (${x.date})` : ''}` : 'not recorded'; }).join(' | ')} |`),
+    '',
     '## What to fix, per site', '',
     'Failures and warnings with the scorecard\'s reason, required items first.', '',
   ];

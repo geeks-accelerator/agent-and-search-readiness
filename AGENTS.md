@@ -11,7 +11,7 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 
 ## Rules
 
-- **No dependencies.** Node 18 or later, built-ins only.
+- **No dependencies.** Node 20 or later, built-ins only.
 - **Read-only.** A check may GET anything and may POST only requests that create nothing on the audited site (an MCP initialize, server/discover, tools/list, an empty POST to `/`). Never register, write or log in.
 - **Every check has an ID that exists in the STANDARD.md checklist.** The tests fail otherwise. A new check needs its item described in STANDARD.md first.
 - **An item belongs in the standard when most projects should do it,** and its level has a stated reason: working agents rely on it, it keeps declarations true, or it's baseline hygiene. A practice from one project goes in "Considered and left out", with the reason.
@@ -23,4 +23,6 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 1. Change `version` in `package.json` and `VERSION` in `src/audit.mjs` together (a test checks they match).
 2. Add a CHANGELOG entry. A new required check, or a check that gets stricter, is a major version: projects pin `readiness-audit@1`, and a new failure shouldn't reach them unannounced.
 3. `npm test`, then run the CLI against two or three real sites and read the output.
-4. `npm whoami`, then `npm publish`.
+4. Commit, push, and publish a GitHub release tagged `v<version>`. The Release workflow checks the tag against package.json, runs the tests, and publishes to npm through trusted publishing (no token).
+
+The very first publish has to be manual (`npm whoami`, then `npm publish --access public`), because npm's trusted publisher is set on the package's settings page, which exists only after the first publish. Then add the trusted publisher on npmjs.com: repository geeks-accelerator/agent-and-search-readiness, workflow `release.yml`.

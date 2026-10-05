@@ -2,10 +2,11 @@
 // readiness-audit: score a live site against the Agent and Search Readiness Standard.
 //
 //   readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json]
-//   readiness-audit --matrix <domain> <domain> ...   (a markdown status page)
+//   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]   (a markdown status page)
 //
 // Exits 1 when a required check fails, so it can gate a deploy.
 
+import { readFileSync } from 'node:fs';
 import { audit, matrix, score, LEVELS, REVIEW, VERSION } from '../src/audit.mjs';
 
 const args = process.argv.slice(2);
@@ -14,8 +15,10 @@ if (flag('--version') || flag('-v')) {
   console.log(VERSION);
   process.exit(0);
 }
-const mcpOpt = flag('--mcp') ? args[args.indexOf('--mcp') + 1] : undefined;
-const domains = args.filter((a, i) => !a.startsWith('-') && args[i - 1] !== '--mcp')
+const valueOf = (name) => (flag(name) ? args[args.indexOf(name) + 1] : undefined);
+const mcpOpt = valueOf('--mcp');
+const recordedPath = valueOf('--recorded');
+const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded'].includes(args[i - 1]))
   .map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));
 const opts = { hasApi: !flag('--no-api'), mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp') };
 
@@ -24,20 +27,26 @@ if (!domains.length || flag('--help') || flag('-h')) {
 
 Usage:
   readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json]
-  readiness-audit --matrix <domain> <domain> ...
+  readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
 
 Options:
   --mcp /path   where your hosted MCP endpoint lives (default /mcp)
   --no-mcp      skip the hosted MCP checks
   --no-api      skip the API checks, for a site with no public API
   --json        print the results as JSON
-  --matrix      score several sites and print a markdown status page`);
+  --matrix      score several sites and print a markdown status page
+  --recorded f  with --matrix: add recorded T5 and T6 results from a JSON file`);
   process.exit(domains.length ? 0 : 2);
 }
 
 if (flag('--matrix')) {
+  let recorded = {};
+  if (recordedPath) {
+    try { recorded = JSON.parse(readFileSync(recordedPath, 'utf8')); }
+    catch (e) { console.error(`Couldn't read ${recordedPath}: ${e.message}`); process.exit(2); }
+  }
   const reports = await Promise.all(domains.map((d) => audit(d, opts)));
-  console.log(matrix(reports, `npx readiness-audit --matrix ${domains.join(' ')}`));
+  console.log(matrix(reports, `npx readiness-audit --matrix ${domains.join(' ')}${recordedPath ? ` --recorded ${recordedPath}` : ''}`, recorded));
 } else {
   const rep = await audit(domains[0], opts);
   if (flag('--json')) console.log(JSON.stringify(rep, null, 2));
