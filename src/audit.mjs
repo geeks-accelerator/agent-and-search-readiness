@@ -4,10 +4,11 @@
 // The standard and what each ID means: STANDARD.md in
 // https://github.com/geeks-accelerator/agent-and-search-readiness
 // Read-only: GETs plus a few POSTs that create nothing (an MCP initialize, server/discover and
-// tools/list, an empty POST to /). Node 18+, no dependencies.
+// tools/list, an empty POST to /). Node 20+, no dependencies.
 
-import { resolveTxt } from 'node:dns/promises';
+import { lookup, resolveTxt } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
+import { isIP } from 'node:net';
 
 export const VERSION = '1.0.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -42,18 +43,81 @@ export const REVIEW = [
   ['T5', 'agent usability test: a fresh agent, only the domain and a goal; report its first-try success rate'],
 ];
 
+// Loopback, private, shared, link-local and unique-local addresses. A site's own content (its sitemap,
+// share images, skills, catalog, DNS record) must not send the auditor there.
+export function isPrivateAddress(ip) {
+  if (isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  if (isIP(ip) === 6) {
+    const x = ip.toLowerCase();
+    if (x === '::' || x === '::1') return true;
+    if (x.startsWith('::ffff:')) return isPrivateAddress(x.slice(7));
+    return /^f[cd]/.test(x) || /^fe[89ab]/.test(x);
+  }
+  return false;
+}
+
+// Run fn over items with at most `limit` in flight, so the audit doesn't hammer a site.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); }
+  }));
+  return out;
+}
+
+// Which URLs the audit may request. The site you chose to audit (and its www or bare variant) is
+// always allowed; anything else must be a public http(s) address, checked again at every redirect hop.
+export function makeGuard(domain) {
+  const siteHosts = new Set([domain, domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`]);
+  const hostCache = new Map();
+  async function isSafe(url) {
+    let u;
+    try { u = new URL(url); } catch { return false; }
+    if (!['http:', 'https:'].includes(u.protocol)) return false;
+    const host = u.hostname.replace(/^\[|\]$/g, '');
+    if (siteHosts.has(host)) return true;
+    if (host === 'localhost' || /\.(localhost|local|internal)$/.test(host)) return false;
+    if (isIP(host)) return !isPrivateAddress(host);
+    if (!hostCache.has(host)) {
+      hostCache.set(host, lookup(host, { all: true }).then((addrs) => addrs.every((a) => !isPrivateAddress(a.address)), () => true));
+    }
+    return hostCache.get(host);
+  }
+  return { siteHosts, isSafe };
+}
+
 export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   const BASE = `https://${domain}`;
   const rand = Math.random().toString(36).slice(2, 10);
 
+  const { siteHosts, isSafe } = makeGuard(domain);
+
+  // Redirects are followed here, one hop at a time, so every hop passes isSafe.
   async function get(path, { headers = {}, method = 'GET', body, redirect = 'follow' } = {}) {
-    const url = path.startsWith('http') ? path : BASE + path;
-    try {
-      const res = await fetch(url, { method, body, redirect, headers: { 'user-agent': UA, ...headers }, signal: AbortSignal.timeout(15000) });
-      const text = await res.text();
-      return { status: res.status, headers: res.headers, text, url: res.url, type: res.headers.get('content-type') ?? '' };
-    } catch (e) {
-      return { status: 0, headers: new Headers(), text: '', url, type: '', error: e.message };
+    let url = path.startsWith('http') ? path : BASE + path;
+    let m = method, b = body;
+    for (let hop = 0; ; hop++) {
+      if (!(await isSafe(url))) return { status: 0, headers: new Headers(), text: '', url, type: '', error: 'refused: not a public address' };
+      let res;
+      try {
+        res = await fetch(url, { method: m, body: b, redirect: 'manual', headers: { 'user-agent': UA, ...headers }, signal: AbortSignal.timeout(15000) });
+      } catch (e) {
+        return { status: 0, headers: new Headers(), text: '', url, type: '', error: e.message };
+      }
+      const loc = res.headers.get('location');
+      if (redirect === 'follow' && res.status >= 300 && res.status < 400 && loc && hop < 5) {
+        try { await res.body?.cancel(); } catch { /* already closed */ }
+        url = new URL(loc, url).href;
+        if (res.status !== 307 && res.status !== 308) { m = 'GET'; b = undefined; }
+        continue;
+      }
+      const text = await res.text().catch(() => '');
+      return { status: res.status, headers: res.headers, text, url, type: res.headers.get('content-type') ?? '' };
     }
   }
   // fetch() always sends an Accept header, so the "no Accept" MCP probe uses node:https.
@@ -89,16 +153,32 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   const skip = (id, name, level, detail) => record(id, name, level, 'skip', detail);
 
   const [home, homeMd, robots, sitemap, llms, llmsFull, openapi, apiIndex, apiCatalog, security, authMd, docsMd,
-    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, postRoot, legacyCard, wkCard] = await Promise.all([
-    get('/'), get('/', { headers: { accept: 'text/markdown' } }), get('/robots.txt'), get('/sitemap.xml'),
-    get('/llms.txt'), get('/llms-full.txt'), get('/openapi.json'), get('/api', { headers: { accept: 'application/json' } }),
-    get('/.well-known/api-catalog'), get('/.well-known/security.txt'), get('/auth.md'), get('/docs/api.md'),
-    get('/.well-known/agent-card.json'), get('/.well-known/ard.json'), get('/.well-known/ai-catalog.json'),
-    get('/.well-known/agent-skills/index.json'), get('/.well-known/oauth-protected-resource'),
-    get('/.well-known/oauth-authorization-server'), get('/.well-known/ai-plugin.json'),
-    get(`/.well-known/no-such-file-${rand}`), get(`/api/no-such-endpoint-${rand}`, { headers: { accept: 'application/json' } }),
-    get('/', { method: 'POST', redirect: 'manual' }), get('/.well-known/mcp.json'), get('/.well-known/mcp/server-card.json'),
-  ]);
+    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, postRoot, legacyCard, wkCard] = await mapLimit([
+    () => get('/'),
+    () => get('/', { headers: { accept: 'text/markdown' } }),
+    () => get('/robots.txt'),
+    () => get('/sitemap.xml'),
+    () => get('/llms.txt'),
+    () => get('/llms-full.txt'),
+    () => get('/openapi.json'),
+    () => get('/api', { headers: { accept: 'application/json' } }),
+    () => get('/.well-known/api-catalog'),
+    () => get('/.well-known/security.txt'),
+    () => get('/auth.md'),
+    () => get('/docs/api.md'),
+    () => get('/.well-known/agent-card.json'),
+    () => get('/.well-known/ard.json'),
+    () => get('/.well-known/ai-catalog.json'),
+    () => get('/.well-known/agent-skills/index.json'),
+    () => get('/.well-known/oauth-protected-resource'),
+    () => get('/.well-known/oauth-authorization-server'),
+    () => get('/.well-known/ai-plugin.json'),
+    () => get(`/.well-known/no-such-file-${rand}`),
+    () => get(`/api/no-such-endpoint-${rand}`, { headers: { accept: 'application/json' } }),
+    () => get('/', { method: 'POST', redirect: 'manual' }),
+    () => get('/.well-known/mcp.json'),
+    () => get('/.well-known/mcp/server-card.json'),
+  ], 6, (job) => job());
   const catalogEntries = [...(json(ard)?.entries ?? []), ...(json(aiCatalog)?.entries ?? [])];
 
   // ---- D1 robots.txt (required) and D15 AI crawlers and Content-Signal (recommended) ----
@@ -490,7 +570,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
       urls = [];
       for (const sub of subs) urls.push(...locs((await get(sub)).text));
     }
-    urls = [...new Set(urls)].filter((u) => u.startsWith('http'));
+    urls = [...new Set(urls)].filter((u) => { try { return siteHosts.has(new URL(u).hostname); } catch { return false; } });
     const norm = (u) => { try { const x = new URL(u); return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '') || '/'}${x.search}`; } catch { return u; } };
     const pick = [];
     const n = Math.min(20, urls.length);
@@ -499,13 +579,17 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
     const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)].map((m) => [m[1].toLowerCase(), m[3] ?? m[4]]));
     const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
     const meta = (html, key, val) => tags(html, 'meta').find((a) => (a[key] ?? '').toLowerCase() === val)?.content;
-    const pages = await Promise.all(pick.map(async (u) => {
-      const r = await get(u, { headers: { accept: 'text/html' } });
-      const h = r.text;
-      const ld = [...h.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
+    const jsonLd = (html) => {
+      const ld = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
       const types = [];
       const walk = (x) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') { if (x['@type']) types.push(...[].concat(x['@type'])); if (x['@graph']) walk(x['@graph']); } };
       ld.forEach(walk);
+      return { ld, types };
+    };
+    const pages = await mapLimit(pick, 4, async (u) => {
+      const r = await get(u, { headers: { accept: 'text/html' } });
+      const h = r.text;
+      const { ld, types } = jsonLd(h);
       return {
         url: u, status: r.status, finalUrl: r.url, html: /text\/html/.test(r.type),
         title: decode(h.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''),
@@ -519,7 +603,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
         imgNoAlt: tags(h, 'img').filter((a) => a.alt === undefined).length,
         ldBroken: ld.filter((x) => x === null).length, types,
       };
-    }));
+    });
     const ok200 = pages.filter((p) => p.status === 200 && p.html);
     const short = (u) => u.replace(BASE, '') || '/';
     const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
@@ -559,6 +643,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
           let url = start;
           for (let n = 0; n < 5; n++) {
             if (new URL(url).origin === origin) return { n, end: url };
+            if (!(await isSafe(url))) return { n, end: url };
             let r;
             try { r = await fetch(url, { method: 'GET', redirect: 'manual', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(15000) }); } catch { return n === 0 ? null : { n, end: url }; }
             const loc = r.headers.get('location');
@@ -607,8 +692,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
       // W4 structured data
       {
         const id = 'W4', name = 'Structured data', level = 'required';
-        const home = ok200.find((p) => norm(p.url) === norm(BASE + '/')) ?? null;
-        const homeTypes = home ? home.types : [];
+        const homeTypes = home.status === 200 ? jsonLd(home.text).types : null;
         const broken = ok200.filter((p) => p.ldBroken).map((p) => short(p.url));
         const none = ok200.filter((p) => !p.types.length).map((p) => short(p.url));
         const deepPages = ok200.filter((p) => new URL(p.url).pathname.split('/').filter(Boolean).length >= 2);
@@ -619,7 +703,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
         if (all.has('Person')) notes.push('Person markup found: fine on a profile the page labels as an AI agent; don\'t imply a human');
         const problems = [];
         if (broken.length) problems.push(`JSON-LD that doesn't parse on ${list(broken)}`);
-        if (home && !homeTypes.some((t) => ['Organization', 'WebSite'].includes(t))) problems.push('no Organization or WebSite on the homepage');
+        if (homeTypes && !homeTypes.some((t) => ['Organization', 'WebSite'].includes(t))) problems.push('no Organization or WebSite on the homepage');
         if (none.length) problems.push(`no JSON-LD on ${list(none)}`);
         if (problems.length) miss(id, name, level, problems.concat(notes).join('; '));
         else if (noCrumbs.length > deepPages.length / 2) record(id, name, level, 'warn', [`no BreadcrumbList on ${noCrumbs.length} of ${deepPages.length} deeper pages`, ...notes].join('; '));
