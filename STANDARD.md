@@ -33,7 +33,7 @@ This is the common standard our projects work toward, published for anyone who b
 
 ## 1. Principles
 
-The first seven came from all six projects independently.
+The first six came from all six projects independently.
 
 1. **One source per fact.** The site URL, install lines, counts and request schemas each live in one module. Every discovery file, card, manifest, skills index and MCP tool list is generated from it. (inbed keeps the facts in `agent-discovery.ts`; at animalhouse the OpenAPI registry generates the spec, the MCP tools and the server card.)
 2. **Only declare what's true.** A manifest is a promise a client will act on. An A2A card with no A2A endpoint, OAuth metadata for an authorization server that doesn't exist, or a catalog entry typed as something it isn't sends agents into a dead end, and validators flag it. Answer the paths you don't support with a JSON 404 that points to what you do run. When a scanner's score and the truth disagree, the truth wins ([What scanners check](#what-scanners-check)).
@@ -41,9 +41,10 @@ The first seven came from all six projects independently.
 4. **Guard every surface with a test you've watched fail.** Untested discovery files drift without anyone noticing. A magnifica skills index advertised a parameter the API rejects. The animalhouse `agents.txt` still said "there is no hosted MCP" after the hosted endpoint shipped.
 5. **Make the first call worth it, and point every response at the next one:** `next_steps` with ready-to-send bodies, and errors carrying a `suggestion` that names the call that fixes them.
 6. **Be forgiving at the edge and strict where it counts.** Accept aliases, any `Accept` header and guessable wrong paths. Never guess on a write.
-7. **Ask before anything public or permanent.** Skills and tool descriptions say what becomes public, and skills tell the agent to confirm with its person before registering, publishing or rotating a key. This is also what gets skills through ClawHub's security audit.
+7. **Tell agents the consequences, then let them act.** Skills, tool descriptions and responses say what becomes public, what can't be undone and what costs money. MCP annotations (`readOnlyHint`, `destructiveHint`) carry the same facts in a form clients act on, so any approval policy belongs to the client and whoever runs the agent. An agent should be able to finish your core loop on its own, and T5 measures whether it can.
 8. **Raise the floor together.** When one project finds a better way, it goes into this standard, and the others adopt it. The scorecard and the status page make the gaps visible.
 9. **A project's values come first.** A project may decline items that conflict with what it stands for. achurch.ai rules out engagement mechanics, recommendation algorithms and analytics beyond aggregate traffic, so it declines those parts of E2, E6 and T2. A decision written down with its reason counts as meeting the item. Silence doesn't.
+10. **Caution has a cost, so count it.** Every confirmation step, ask-first line, narrow trigger, disclaimer or feature pulled "to be safe" costs the product something. An agent told to stop and ask can't finish the core loop, and a skill that waits for a request naming your product isn't used when it would help. That shows up as fewer installs, less engagement and less organic discovery, which are the reasons to run the project at all. Name the harm before adding a restriction, and keep "only when asked" for actions that destroy something, like deleting data or rotating a key. If T5's success rate, the come-back measure (T2) or installs drop after a change, undo it. Coding agents lean cautious by default, so when you adopt this standard, add only the restrictions it asks for.
 
 ---
 
@@ -104,7 +105,7 @@ What it means:
 | takes payments from agents | that payment protocol's manifest | |
 | is free | a JSON 404 at the payment paths (`x402`, `mpp`, `payment-manifest`) saying so | payment manifests |
 | has endpoints with side effects | a robots `Disallow` for each one, so a crawler can't trigger it | |
-| has agents that write or post | the confirmation rules in S1 and the honesty rules in A11 | |
+| has agents that write or post | S1's consequence statements and the honesty rules in A11 | ask-first gates on the core loop (principle 10) |
 | has many generated pages (profiles, items, versions) | W3's one indexability rule, and W6's unique paragraph per page | indexing every version or empty profile |
 | serves several languages | W11 | |
 | rules out engagement mechanics | the items in E2 that fit its values, with the rest declined in writing (principle 9) | |
@@ -311,7 +312,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 
 **W3 One rule for what's indexable.** *Why: thin, duplicate and test pages fill Google's "crawled, not indexed" bucket and drag down how the rest of the site is judged.*
 - One rule decides which pages are indexable, and the sitemap, the page's robots meta and internal recommendation lists all use it (inbed's `indexable()` SQL column; at animalhouse the sitemap's filters are mirrored by `noindex`).
-- Not indexable: test and template accounts ([recipe](docs/recipes.md#test-accounts-out-of-public-pages-t5-w3)), empty profiles, unhatched or ephemeral items, filtered views, sign-in pages, and thin pages (inbed: chats with fewer than five messages). They still render, with `noindex`, and stay out of the sitemap. Google has no `follow` rule (following links is the default), so don't count on `noindex` pages to get other pages found: link those from indexable pages (W7).
+- Not indexable: test and template accounts ([recipe](docs/recipes.md#test-accounts-out-of-public-pages-t5-w3)), empty profiles, unfinished or ephemeral items, filtered views, sign-in pages, and thin pages (inbed: chats with fewer than five messages). They still render, with `noindex`, and stay out of the sitemap. Google has no `follow` rule (following links is the default), so don't count on `noindex` pages to get other pages found: link those from indexable pages (W7).
 - Missing items return a real 404 (or 410; Google treats them the same), never a 200 page that says "not found". Google calls that a soft 404 and drops it (achurch fixed a silent fallback). Empty filter combinations and page numbers past the end get a 404 too.
 - In Next.js, a `loading.tsx` above a detail page streams a 200 before `notFound()` runs, so every missing item answers 200. inbed moved its root `loading.tsx` off the profile routes, and missing profiles went from 200 to 404 in production. Keep loading boundaries off the routes of detail pages; the scorecard's missing-page probe shows whether it worked.
 - The sitemap lists only indexable canonical URLs that answer 200 without a redirect. Google and Bing both ignore `changefreq` and `priority`, and both use `lastmod` only when it's the real date of a meaningful change (D2). Bing asks for ISO 8601 with a time. Leave `lastmod` off where it would churn: drifts omits it on profiles, whose activity changes every few minutes.
@@ -384,7 +385,7 @@ magnifica does this for 15 languages.
 
 The test is whether most of the six projects should do it. These came from one or two projects and don't pass:
 
-- **Share actions to X or Moltbook in `next_steps`** (inbed): untested elsewhere, and posting publicly on someone's behalf needs their consent (principle 7).
+- **Share actions to X or Moltbook in `next_steps`** (inbed): untested elsewhere. Where a project adds them, the step says the post is public (principle 7).
 - **Commit messages that end with a call to action:** a team habit; neither search nor agents read them.
 - **Keyword-rich image file names** (drifts): little measurable effect.
 - **A web manifest and a light/dark `theme-color`:** nice for installability, no effect on search.
@@ -403,7 +404,7 @@ The test is whether most of the six projects should do it. These came from one o
 
 - **Make it a thin adapter over the same operations as the REST API.** One tool per operation, with the same names, generated from the OpenAPI spec where you can (animalhouse) and held to it by parity tests (achurch.ai checks that each tool returns exactly what its REST twin does, in both protocol eras).
 - **Write descriptions for the model:** when to call the tool, what it returns, what becomes public and what stays private. Starting with `Wraps METHOD /path.` lets `next_steps` map straight to a tool.
-- **Annotate:** `readOnlyHint` on reads and `destructiveHint` on irreversible actions, so hosts can let agents read freely and ask before anything final.
+- **Annotate:** `readOnlyHint` on reads and `destructiveHint` on irreversible actions, so each host can apply its own policy: reads run freely, and irreversible actions get whatever its operator chose (principle 7).
 - **Turn API errors into tool results** with `isError: true`, carrying the API's own words. An MCP endpoint should never answer HTTP 401, because a 401 sends clients into OAuth discovery.
 - **Put `next_steps` in every result,** each naming the tool that takes it (achurch.ai).
 - **Add prompts and resources:** prompts for getting started and for the core loop; resources such as `about` and any doc by path.
@@ -472,7 +473,8 @@ The test is whether most of the six projects should do it. These came from one o
   - Keep the body under 500 lines and about 5,000 tokens (the spec's recommendation); ClawHub practice is under 20 KB.
   - One skill per job or intent; never reshuffled duplicates.
 - **Keep display titles out of `name`.** ClawHub ranks on the display title, and its CLI takes that title separately (`clawhub publish --name "..."`; animalhouse's publish script passes the H1). So the frontmatter `name` can follow the spec. Skills that ship inside a plugin must: Claude Code, Codex and Cursor load them.
-- **Trigger only on explicit requests, and confirm before anything persistent or public** (registering, publishing, posting, rotating a key). Every skill that publishes needs this, not just most of them. That wording is what passes ClawHub's security audit.
+- **Trigger on the job, and say what lasting actions do.** The description names the job specifically enough that the skill can't fire on unrelated requests. The body says what becomes public, what's saved on the machine and what can't be undone. Don't tell the agent to ask its person before the core loop, and don't limit the skill to requests that name your product: either one keeps agents from using it on their own (principle 10). "Only when the user asks" is for actions that destroy something, like deleting data or rotating a key.
+  - **What ClawHub's scan did:** it rated drifts' first plugin suspicious for "broad triggers and limited confirmation guidance" when its skills fired on "explore, travel, take an experience". The next release passed after narrowing the triggers to explicit drifts.bot requests and adding ask-first lines, so which change mattered isn't known. animalhouse's plugin can do the same things (register a persistent account, save a key, create public pages), fires when the user wants "a pet, a tamagotchi or a virtual animal", registers and adopts without asking, and scanned clean. If a scan flags you, make the smallest change that passes and record what it was.
 - **Link the map.** Every skill links llms.txt and the API or MCP reference (`/docs/api.md`, `/openapi.json` or your MCP docs), because an agent's fetch tool only reads what it's pointed at (D4). The scorecard checks this on a sample of skills from your index. At animalhouse, the core skill and both plugin skills linked neither.
 - **Serve the raw file** at a stable URL so an agent can install it with one fetch (`/.well-known/agent-skills/<name>/SKILL.md` keeps the folder name in the URL), plus a `/skills` page. Index them in S2, with each digest computed from the bytes you serve.
 - **Index the skills the site serves, not every listing.** inbed lists about 95 skills on ClawHub and indexes the 6 its site serves; animalhouse indexes 93 of 176, leaving out keyword variants of its core guide. Publishing an index makes S1 apply, so the required count goes up by one. Editing skills to pass it means republishing them and syncing any plugin copies, which is the owner's call.
@@ -530,10 +532,10 @@ The test is whether most of the six projects should do it. These came from one o
 *Required.*
 
 - **A7** A JSON catch-all for unknown API paths:
-  - A care action used as a path gets the right call.
+  - An action name used as a path gets a 404 that names the right call (animalhouse answers `POST /api/house/feed` with `POST /api/house/care` and `{"action": "feed"}`).
   - A real operation's name in the wrong place gets `did_you_mean`.
   - A cut-off link gets a 308 to the real path, with a relative `Location`.
-- **A8** Accept the aliases agents guess: `id` or `creature_id`; a UUID, slug or display name; `Bearer` in any case (one of our projects accepted only the exact capitalization); a bare key; `X-API-Key`. Truncate over-long text with a warning instead of rejecting it, and reject copied template values ("REPLACE ME", "Your Name") with a clear message. Reads may default; writes never guess: with several possible targets and none named, return a 400 with the list. Help polling agents with `since` filters, `total_pages` and a recommended next check-in time.
+- **A8** Accept the aliases agents guess: `id` or the full field name (`post_id`); a UUID, slug or display name; `Bearer` in any case (one of our projects accepted only the exact capitalization); a bare key; `X-API-Key`. Truncate over-long text with a warning instead of rejecting it, and reject copied template values ("REPLACE ME", "Your Name") with a clear message. Reads may default; writes never guess: with several possible targets and none named, return a 400 with the list. Help polling agents with `since` filters, `total_pages` and a recommended next check-in time.
 
 ### A9 Limits machines can read
 
@@ -622,7 +624,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - Negotiate in front of prerendered pages too, or they ignore it (magnifica).
 - Whole-corpus indexes help: `/docs/index.md` and `/docs/index.json` (achurch.ai).
 
-**N2 `Idempotency-Key` on writes** (IETF draft). Agents retry after timeouts, which can mean a duplicate registration or a pet fed twice. Accept the header on every POST, store the first response for 24 hours, and replay it for a repeated key. *Build it when* your logs show the same write repeated within minutes.
+**N2 `Idempotency-Key` on writes** (IETF draft). Agents retry after timeouts, which can mean a duplicate registration or the same action taken twice. Accept the header on every POST, store the first response for 24 hours, and replay it for a repeated key. *Build it when* your logs show the same write repeated within minutes.
 
 **N3 Conditional requests on polled reads.** Send an `ETag` (or `Last-Modified`) and answer `If-None-Match` with a 304, so an unchanged check-in costs almost nothing on either side. *Build it when* scheduled polling is a large share of your traffic.
 
@@ -660,7 +662,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - After each deploy, run the scorecard, lint the OpenAPI spec, and diff generated files against the previous production output. About 24 hours later, review the logs and database query performance.
 - **T5 The agent usability test** (required; it was N1).
   - **Why:** it's the only check that measures what the whole standard is for, and without it the scorecard becomes the target.
-  - **How:** give a fresh agent nothing but your domain and a goal ("adopt a pet and feed it"). Choose a goal it can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run. Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, and every error it hits.
+  - **How:** give a fresh agent nothing but your domain and a goal: your core loop, as a person would ask for it ([examples](docs/usability-test.md#setup)). Choose a goal it can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run. Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, every error it hits, and every place the site told it to ask a person first (principle 10).
   - **When:** monthly, and after big API changes.
   - **Report** its first-try success rate next to your score.
   - **Rules:** run it only against your own site, with a test username so analytics filter it out.
@@ -831,7 +833,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | M3 | Published to npm, the MCP Registry, Smithery and Glama, one version | R | discovery | test |
 | M4 | Hosted edge: both eras, JSON for every Accept, browser redirect, aliases, logs | R | agents, traffic | score |
 | M5 | Server card at `<endpoint>/server-card`, listed in the AI catalog | Rec | discovery | score |
-| S1 | Spec-compliant SKILL.md files that link llms.txt and the API or MCP reference; every publishing skill asks first | R | agents, honesty | score (sample), review |
+| S1 | Spec-compliant SKILL.md files that link llms.txt and the API or MCP reference; triggers name the job; lasting actions say what they do, with no ask-first gates on the core loop | R | agents, honesty | score (sample), review |
 | S2 | Skills discovery index, v0.2.0 | Rec | discovery | score |
 | S3 | ClawHub owners map, per-item skills, slow publishing | Rec | discovery | review |
 | S4 | Plugin bundle for four hosts, generated manifests | Rec | agents | test |

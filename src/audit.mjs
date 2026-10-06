@@ -12,7 +12,7 @@ import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
@@ -36,7 +36,7 @@ export const REVIEW = [
   ['A11', 'public and private stated honestly, one privacy filter'],
   ['M2', 'stdio package: saved key, register guard, rotate, User-Agent'],
   ['M3', 'published to npm, the MCP Registry, Smithery and Glama, one version'],
-  ['S1', 'skills ask before anything public or permanent (the scorecard checks names, descriptions and links on a sample)'],
+  ['S1', 'skills trigger on the job and say what lasting actions do, with no ask-first gates on the core loop (the scorecard checks names, descriptions and links on a sample)'],
   ['S3', 'ClawHub owners map'],
   ['S4', 'plugin bundle with generated manifests'],
   ['E1-E6', 'first-call value, reasons to return, scheduled-agent performance'],

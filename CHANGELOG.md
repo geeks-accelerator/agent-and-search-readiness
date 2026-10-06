@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1 (2026-10-06)
+
+Principle 7 told skills to have the agent confirm with its person before registering, publishing or rotating a key, and S1 required it of every skill that publishes. That gates the core loop: an agent following it can't finish on its own, and a skill limited to explicit requests isn't used when it would help. No scoring changes.
+
+- **Principle 7 is now "Tell agents the consequences, then let them act."** Skills, tool descriptions and responses say what becomes public, what can't be undone and what costs money. MCP annotations carry the same facts, and approval policy belongs to the client and whoever runs the agent.
+- **New principle 10, "Caution has a cost, so count it."** Confirmation steps, ask-first lines, narrow triggers and disclaimers cost installs, engagement and organic discovery. Name the harm before adding a restriction, keep "only when asked" for destructive actions, and undo a change that lowers T5 or the come-back measure. Principles 8 and 9 keep their numbers.
+- **S1:** trigger on the job, specifically enough not to fire on unrelated requests, and say what lasting actions do, with no ask-first gates on the core loop. ClawHub's scan flagged drifts' first plugin for broad triggers ("explore, travel"); animalhouse's plugin, with job-specific triggers and no gates on the core loop, scanned clean. The scorecard's S1 review line says the same. botsmatter had already declined the old rule. If your skills have ask-first lines or explicit-only triggers from the old wording, take them out of the core loop; republishing is the owner's call.
+- **T5:** record every place the site told the agent to ask a person first. The runner's report now asks for them (`STOPS`).
+- **Examples that fit any project:** the T5 goal, A7, A8's aliases, N2 and W3 no longer use one project's terms. The principles list now says the first six (not seven) came from all six projects.
+- **docs/adopting.md:** a third switch-over rule: don't add caution the standard doesn't ask for.
+
 ## 1.2.0 (2026-10-06)
 
 From drifts.bot's switch-over, the third project to adopt the standard. One new warning (D4), no new failures. It also ships 1.1.0, which wasn't published to npm.

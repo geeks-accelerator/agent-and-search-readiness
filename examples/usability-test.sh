@@ -43,7 +43,8 @@ When you finish or give up, end with a report:
 RESULT: SUCCESS or FAILURE
 CALLS: the requests you made, in order
 ERRORS: every error you hit, and whether the response told you how to recover
-MISMATCHES: every place where the docs and what the site actually did disagree"
+MISMATCHES: every place where the docs and what the site actually did disagree
+STOPS: every place the site, its docs or a skill told you to ask a person before going on, and what you did"
 
   workdir="$(mktemp -d)" # an empty folder: no project files, CLAUDE.md or memory
   (cd "$workdir" && claude -p "$prompt" --model "$model" --max-turns "$max_turns" "${isolation[@]}" \

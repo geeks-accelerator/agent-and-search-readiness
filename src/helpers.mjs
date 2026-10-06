@@ -23,7 +23,7 @@ export function spread(list, n) {
 /**
  * The site's own links in an llms.txt: markdown links and bare URLs, resolved
  * against the file's URL, without fragments, kept only when they point at one
- * of the site's hosts. Templates such as /creatures/{id} are skipped.
+ * of the site's hosts. Templates such as /items/{id} are skipped.
  */
 export function llmsLinks(text, llmsUrl, hosts) {
   const raw = [

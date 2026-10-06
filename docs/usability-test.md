@@ -14,7 +14,7 @@ The scorecard checks what a site declares. This test checks whether an agent suc
 `examples/usability-test.sh` runs the attempts with Claude Code in print mode:
 
 ```
-examples/usability-test.sh example.com "Adopt a pet and feed it" --attempts 5 --model sonnet --max-turns 60
+examples/usability-test.sh <your-domain> "<your goal>" --attempts 5 --model sonnet --max-turns 60
 ```
 
 It writes one transcript per attempt to `usability-<domain>-<timestamp>-<n>.json`. Any agent works; record which one you used, its model and its turn limit.
@@ -30,6 +30,7 @@ For each attempt, record:
 - **Success:** did it reach the goal without help?
 - **Calls:** how many requests it made.
 - **Errors:** every error it hit, and whether the response told it how to recover.
+- **Stops:** every place the site, its docs or a skill told the agent to ask a person first. An agent running unattended has no one to ask, so each one is a place the core loop stalls (principle 10).
 - **Doc mismatches:** places where the docs promised something the site didn't do (drifts' docs promised `reflection_saved: true`; the response didn't include it). These are often the best findings, and response schemas with a contract test (N7) catch them for good.
 
 The headline is the **first-try success rate**: "4 of 5". The errors are the to-do list. Each one is a place where a `next_steps`, a `suggestion` or a clearer doc would have helped.
