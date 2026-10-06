@@ -18,6 +18,8 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 - **Every check has an ID that exists in the STANDARD.md checklist.** The tests fail otherwise. A new check needs its item described in STANDARD.md first.
 - **An item belongs in the standard when most projects should do it,** and its level has a stated reason: working agents rely on it, it keeps declarations true, or it's baseline hygiene. A practice from one project goes in "Considered and left out", with the reason.
 - **Claims cite primary sources** (specs, official docs) in §16, with a date. Mark drafts as drafts.
+- **Rules stay project-neutral.** A rule's own example is generic; a project's name appears only with its evidence ("at animalhouse, ..."). Several projects follow this standard, and an example from one reads as that project's spec.
+- **No caution without a named harm** (principle 10). Don't add ask-first lines, disclaimers or restrictions to the standard because they feel safe: projects copy them into their skills and APIs, and they cost adoption.
 - **Writing:** plain, direct sentences. No em dashes.
 
 ## Releasing
