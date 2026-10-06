@@ -728,7 +728,7 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 - **A catalog entry's type is a claim.** Typing `mcp.json` as a server card is a false declaration even when `mcp.json` itself is honest.
 - **A client-side `document.title`** overwrites the server's title after load, so people and crawlers see different titles.
 - **A site-wide `twitter:title`** overrides every page's own `og:title` on X.
-- **Two items with the same name can share one URL.** animalhouse's creature page 404s when an agent reuses a name, while the sitemap still lists the URL. W3's sitemap sample catches it.
+- **Two items with the same name can share one URL.** animalhouse's creature page 404'd when an agent reused a name, while the sitemap still listed the URL; the lookup now picks the item the URL means (a living one first, then one with a gravestone). W3's sitemap sample catches it.
 - **`og:locale` and JSON-LD `inLanguage` use different formats:** `en_US` and `en-US`, `zh_CN` and `zh-Hans`.
 - **Retired rich results still get added.** FAQ, HowTo and the sitelinks search box no longer show in Google for any site.
 - **ClawHub's shared namespace, scan delay and account ownership** (S3).
