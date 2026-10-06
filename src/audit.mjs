@@ -9,9 +9,9 @@
 import { lookup, resolveTxt } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription } from './helpers.mjs';
 
-export const VERSION = '1.0.1';
+export const VERSION = '1.1.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
@@ -19,7 +19,7 @@ const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 
 const SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json';
 const CARD_SCHEMA = 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json';
 export const LEVELS = ['required', 'recommended', 'next'];
-const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'A1', 'A2', 'A6', 'A7', 'M1', 'M4', 'S1', 'D5', 'D7', 'D8', 'D9', 'D10', 'D15', 'A3', 'A4', 'A5', 'M5', 'S2', 'N5', 'N6'];
+const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'A1', 'A2', 'A6', 'A7', 'M1', 'M4', 'S1', 'D5', 'D7', 'D9', 'D10', 'D15', 'A3', 'A4', 'A5', 'M5', 'S2', 'D8', 'N5', 'N6'];
 // Items the scorecard can't see from outside. Each project checks these in review and tests.
 export const REVIEW = [
   ['D3', 'pages read well: server-rendered, unique prose on generated pages (the scorecard checks W1 to W6 on a sample)'],
@@ -288,7 +288,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
 
   // ---- D8 markdown for agents ----
   {
-    const id = 'D8', name = 'Markdown for agents', level = 'recommended';
+    const id = 'D8', name = 'Markdown for agents', level = 'next';
     const varyAccept = (r) => /(^|,)\s*accept\s*(,|$)/i.test(r.headers.get('vary') ?? '');
     const tokens = homeMd.headers.get('x-markdown-tokens');
     if (!/text\/markdown/.test(homeMd.type)) miss(id, name, level, `Accept: text/markdown on / returns ${ct(homeMd)}`);
@@ -345,33 +345,46 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
           seen.add(s.$ref);
           return deref(s.$ref.replace(/^#\//, '').split('/').reduce((n, k) => n?.[k], spec), seen);
         };
-        const undescribedProps = (schema, seen = new Set()) => {
+        // `nested` collects fields whose only description sits inside anyOf, oneOf or allOf.
+        const undescribedProps = (schema, seen = new Set(), nested = null) => {
           const s = deref(schema);
           if (!s || typeof s !== 'object' || seen.has(s)) return [];
           seen.add(s);
           const out = [];
           for (const [k, v] of Object.entries(s.properties ?? {})) {
             const d = deref(v);
-            if (!(v?.description || d?.description)) out.push(k);
-            out.push(...undescribedProps(d, seen));
+            if (!(v?.description || d?.description)) {
+              out.push(k);
+              if (nested && hasVariantDescription(d, deref)) nested.add(k);
+            }
+            out.push(...undescribedProps(d, seen, nested));
           }
-          for (const key of ['items', 'allOf', 'anyOf', 'oneOf']) for (const sub of [].concat(s[key] ?? [])) out.push(...undescribedProps(sub, seen));
+          for (const key of ['items', 'allOf', 'anyOf', 'oneOf']) for (const sub of [].concat(s[key] ?? [])) out.push(...undescribedProps(sub, seen, nested));
           return out;
         };
         const ops = Object.entries(spec.paths ?? {}).flatMap(([p, item]) => Object.entries(item)
           .filter(([m]) => ['get', 'post', 'put', 'patch', 'delete'].includes(m))
           .map(([m, o]) => ({ key: `${m.toUpperCase()} ${p}`, o, params: [...(item.parameters ?? []), ...(o.parameters ?? [])] })));
         const noDesc = ops.filter(({ o }) => !String(o.description ?? '').trim());
-        const fieldGaps = ops.flatMap(({ key, o, params }) => [
-          ...params.map((p) => deref(p)).filter((p) => p && !p.description && !deref(p.schema)?.description).map((p) => `${key} ${p.name}`),
-          ...Object.values(deref(o.requestBody)?.content ?? {}).flatMap((c) => undescribedProps(c.schema)).map((f) => `${key} ${f}`),
-        ]);
+        const inVariant = [];
+        const fieldGaps = ops.flatMap(({ key, o, params }) => {
+          const nested = new Set();
+          const gaps = [
+            ...params.map((p) => deref(p)).filter((p) => p && !p.description && !deref(p.schema)?.description).map((p) => `${key} ${p.name}`),
+            ...Object.values(deref(o.requestBody)?.content ?? {}).flatMap((c) => undescribedProps(c.schema, new Set(), nested)).map((f) => `${key} ${f}`),
+          ];
+          inVariant.push(...[...nested].map((f) => `${key} ${f}`));
+          return gaps;
+        });
+        const variantNote = inVariant.length ? `; ${inVariant.length === fieldGaps.length ? 'each has' : `${inVariant.length} of them ${inVariant.length === 1 ? 'has' : 'have'}`} one inside anyOf or oneOf: put it on the field itself (in Zod, call .describe() last, after .optional() and .nullable())` : '';
+        const repeats = ops.filter(({ o }) => repeatsSummary(o));
+        const repeatNote = repeats.length ? `; ${repeats.length} operation${repeats.length === 1 ? "'s description only repeats its" : "s' descriptions only repeat their"} summary (say when to use ${repeats.length === 1 ? 'it' : 'each'})` : '';
         const respGaps = new Set(ops.flatMap(({ o }) => Object.values(o.responses ?? {}).flatMap((r) => Object.values(deref(r)?.content ?? {}).flatMap((c) => undescribedProps(c.schema)))));
         const respNote = respGaps.size ? `; ${respGaps.size} response field${respGaps.size === 1 ? ' has' : 's have'} no description (see N7)` : '';
         if (!String(spec.openapi).startsWith('3.1')) miss(id, name, level, `OpenAPI ${spec.openapi} (use 3.1)`);
-        else if (noDesc.length) miss(id, name, level, `${noDesc.length} of ${ops.length} operations ${noDesc.length === 1 ? 'has' : 'have'} no description (${noDesc.slice(0, 3).map((x) => x.key).join(', ')}${noDesc.length > 3 ? ', ...' : ''})${respNote}`);
-        else if (fieldGaps.length) miss(id, name, level, `${fieldGaps.length} request field${fieldGaps.length === 1 ? ' has' : 's have'} no description (${fieldGaps.slice(0, 3).join(', ')}${fieldGaps.length > 3 ? ', ...' : ''})${respNote}`);
-        else pass(id, name, level, `OpenAPI ${spec.openapi}; all ${ops.length} operations and their request fields described${respNote}`);
+        else if (noDesc.length) miss(id, name, level, `${noDesc.length} of ${ops.length} operations ${noDesc.length === 1 ? 'has' : 'have'} no description (${noDesc.slice(0, 3).map((x) => x.key).join(', ')}${noDesc.length > 3 ? ', ...' : ''})${repeatNote}${respNote}`);
+        else if (fieldGaps.length) miss(id, name, level, `${fieldGaps.length} request field${fieldGaps.length === 1 ? ' has' : 's have'} no description (${fieldGaps.slice(0, 3).join(', ')}${fieldGaps.length > 3 ? ', ...' : ''})${variantNote}${repeatNote}${respNote}`);
+        else pass(id, name, level, `OpenAPI ${spec.openapi}; all ${ops.length} operations and their request fields described${repeatNote}${respNote}`);
       }
     }
     {
@@ -809,7 +822,7 @@ export function score(results, level) {
   return rows.length ? `${rows.filter((r) => r.status === 'pass').length} of ${rows.length}` : 'n/a';
 }
 
-// Markdown status page for several sites, for docs/guides/agent-readiness-status.md.
+// Markdown status page for several sites, for a project's docs/readiness-status.md.
 // `recorded` holds what the scorecard can't measure, per domain:
 // { "example.com": { "T5": { "result": "4 of 5 first try", "date": "2026-10-12" }, "T6": { ... } } }
 export function matrix(reports, command, recorded = {}) {
@@ -825,6 +838,7 @@ export function matrix(reports, command, recorded = {}) {
     ...ids.map(([id, name, level]) => `| ${id} | ${name} | ${level} | ${reports.map((rep) => sym[rep.results.find((r) => r.id === id)?.status ?? 'skip']).join(' | ')} |`),
     `| | **Required passed** | | ${reports.map((rep) => `**${score(rep.results, 'required')}**`).join(' | ')} |`,
     `| | Recommended passed | | ${reports.map((rep) => score(rep.results, 'recommended')).join(' | ')} |`,
+    `| | Next level passed | | ${reports.map((rep) => score(rep.results, 'next')).join(' | ')} |`,
     `| | Hosted MCP endpoint | | ${reports.map((rep) => (rep.hosted_mcp ? 'yes' : 'no')).join(' | ')} |`,
     ...[['T5', 'Agent usability test (recorded)'], ['T6', 'Search numbers (recorded)']].map(([id, label]) =>
       `| ${id} | ${label} | required | ${reports.map((rep) => { const x = recorded[rep.domain]?.[id]; return x ? `${String(x.result ?? '').replace(/\|/g, '/')}${x.date ? ` (${x.date})` : ''}` : 'not recorded'; }).join(' | ')} |`),

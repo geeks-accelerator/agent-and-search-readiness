@@ -18,7 +18,7 @@ npx readiness-audit example.com
 It needs Node 20 or later and has no dependencies. It only reads: GET requests, plus a few POSTs that create nothing (an MCP `initialize`, `server/discover` and `tools/list`, and an empty POST to `/`). It keeps to about six requests at a time, and it won't follow a link the site supplies (in its sitemap, share images, skills, catalog or DNS record) to a private or local address, at any redirect. It prints a pass, warning or failure for each check, with the reason, and exits with code 1 when a required check fails, so it can gate a deploy.
 
 ```
-readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json]
+readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous]
 readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
 ```
 
@@ -28,6 +28,7 @@ readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
 | `--no-mcp` | skip the hosted MCP checks |
 | `--no-api` | skip the API checks, for a site with no public API |
 | `--json` | print the results as JSON |
+| `--compare file` | list what changed since a previous run: a status page from `--matrix` or a saved `--json` report |
 | `--matrix` | score several sites and print a markdown status page |
 | `--recorded file` | with `--matrix`, add your recorded T5 and T6 results (format: [examples/recorded.json](examples/recorded.json)) |
 

@@ -122,6 +122,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - **Disallow what has side effects or private data.** For read-only API endpoints that live-fetch agents need (public stats, a self-documenting `GET /api/auth/register`), allow the fetch and send `X-Robots-Tag: noindex` on the JSON instead, so search engines skip it without blocking agents (botsmatter, inbed).
 - **Allow your share-card path** (`/api/og/` at animalhouse, `/og/` at botsmatter), and add the `Sitemap:` line.
 - **Purge it from your CDN after a change.** Cloudflare caches robots.txt by default, so crawlers keep the old rules until the cached copy expires. The scorecard says when it read a cached copy.
+- **Watch for CDN features that rewrite it.** Cloudflare's managed robots.txt, and features like it, put their own group at the top of your file, which can break D1 and D15. Leave them off, or check robots.txt after turning one on.
 - Naming AI crawlers and stating a Content-Signal policy is D15 (recommended).
 - **Done when** the scorecard passes D1.
 
@@ -160,15 +161,16 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 
 **A1 OpenAPI 3.1 at `/openapi.json`.** *Why: working agents fetch it (curl was the top client in our logs).*
 - Generated from the same source that validates requests: Zod at animalhouse and inbed, plain JavaScript definitions at botsmatter.
-- Every operation has a description saying when and why to call it. A one-line summary isn't enough.
+- Every operation has a description saying when and why to call it. A one-line summary isn't enough, and the scorecard notes descriptions that only repeat the summary. A "When to use" line per operation in your API reference makes a good source, and agents reading the markdown get it too (inbed).
 - Every parameter and request field is described. Response fields too, once you have response schemas (N7).
+- Put each description on the field itself. One inside `anyOf` or `oneOf` counts as missing, because many clients show only the field's own description. Zod puts it there for `.nullable()` when `.describe()` comes first, so call `.describe()` last, after `.optional()` and `.nullable()`.
 - **Done when** the scorecard passes A1 and `npx @redocly/cli lint` passes. Checking the spec against real responses needs response schemas, so that contract test lives with N7.
 
-**A2 `GET /api`**: a JSON index of every operation, generated from the spec. *Why: agents ask for it (19 requests in four days at animalhouse, curl most often).*
+**A2 `GET /api`**: a JSON index of every operation, generated from the spec. *Why: agents ask for it (19 requests in four days at animalhouse, curl most often).* A browser asking for HTML can be redirected to the docs ([recipe](docs/recipes.md#get-api-json-for-agents-the-docs-for-browsers-a2)).
 
-**A6 Errors that teach**: `next_steps` and a `suggestion` on every response, errors included ([§8](#a6-every-response-teaches)). *Why: working agents rely on it.* The scorecard tests one case: an authenticated operation called without a key must answer JSON that says how to get one.
+**A6 Errors that teach**: `next_steps` and a `suggestion` on every response, errors included ([§8](#a6-every-response-teaches)). *Why: working agents rely on it.* The scorecard tests one case: an authenticated operation called without a key must answer JSON that says how to get one. Point out unreplaced placeholders too: an id like `{{AGENT_ID}}` copied from your docs reaches the real route, not the catch-all, so its not-found answer should say it looks like a placeholder ([recipe](docs/recipes.md#unreplaced-placeholders-in-ids-a6)).
 
-**A7 A JSON catch-all for wrong API paths** with `next_steps`, a `suggestion` or `did_you_mean` ([§8](#forgiving-input-strict-mutations)). *Why: agents guess paths; animalhouse built its catch-all from the 404s in its logs.*
+**A7 A JSON catch-all for wrong API paths** with `next_steps`, a `suggestion` or `did_you_mean` ([§8](#forgiving-input-strict-mutations)). *Why: agents guess paths; animalhouse built its catch-all from the 404s in its logs.* `did_you_mean` can come from edit distance against your OpenAPI paths ([recipe](docs/recipes.md#did_you_mean-from-the-openapi-paths-a7)).
 
 ### Recommended
 
@@ -177,23 +179,14 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
   ```
   Link: </openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json",
         </docs/api>; rel="service-doc"; type="text/html",
-        </llms.txt>; rel="describedby"; type="text/markdown",
+        </llms.txt>; rel="describedby"; type="text/plain",
         </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"
   ```
+- Give each link the type your server actually sends for that URL. llms.txt is usually `text/plain`.
 - `service-desc` is the machine-readable description (your OpenAPI). `service-doc` is the human documentation (RFC 8631). Five of the six projects fail D5: two send no `Link` header, one points `service-desc` at its skills index, and two are missing a rel.
 - Registered relations are `describedby`, `service-desc`, `service-doc`, `service-meta` and `api-catalog`. `ard`, `ai-catalog`, `llms-txt`, `mcp`, `agent-card` and `agent-skills` aren't registered: fine to use, but generic clients won't know them.
 
-**D7 JSON 404s for unknown `/.well-known/*` paths, and a JSON 405 on `POST /`** naming the MCP endpoint and the API (achurch.ai, magnifica). An HTML 404 page is noise to an agent. *Why: cheap, and it helps the agents and crawlers that guess. No project passes all of it yet.*
-
-**D8 Markdown for agents**
-- `Accept: text/markdown` and a `.md` URL both return the page as markdown.
-- Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
-- Next.js 14.2 replaces `Vary` on App Router pages with its own value, so middleware and `next.config` headers can't add `Accept` to the HTML. Add it at the edge (a CDN response header rule), and send it from the markdown route yourself (animalhouse.ai).
-- Make links absolute, and link back to the HTML page as canonical.
-- Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
-- Negotiate in front of prerendered pages too, or they ignore it (magnifica).
-- Whole-corpus indexes help: `/docs/index.md` and `/docs/index.json` (achurch.ai).
-- Behind Cloudflare (Pro and up), its Markdown for Agents feature does the conversion and sends these headers for you.
+**D7 JSON 404s for unknown `/.well-known/*` paths, and a JSON 405 on `POST /`** naming the MCP endpoint and the API (achurch.ai, magnifica). An HTML 404 page is noise to an agent. *Why: cheap, and it helps the agents and crawlers that guess. No project passes all of it yet.* One catch-all route can answer D7 and D11 together ([recipe](docs/recipes.md#one-catch-all-for-unknown-well-known-paths-d7-d11)).
 
 **D9 An AI catalog (ARD)**
 - One list of what an agent can use here, such as the MCP server card, the OpenAPI document, skills and llms.txt, with identifiers in the form `urn:air:<publisher-domain>:<namespace>:<name>`.
@@ -204,6 +197,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 **D10 A DNS AID record**
 - One TXT record at `_agent.<domain>` (AID v2.1.1, `v=aid2`). Point it at your main agent entry point: the hosted MCP endpoint if you have one (`p=mcp`), otherwise the OpenAPI document (`p=openapi`).
 - `v`, `u` and `p` are required and `a` is recommended. `s` is a description of up to 60 bytes; `d` is the docs URL.
+- `a` is the auth hint. AID v2.1.1 allows `none`, `pat`, `apikey`, `basic`, `oauth2_device`, `oauth2_code`, `mtls` and `custom`. For an API that takes keys: `v=aid2;u=https://example.com/openapi.json;p=openapi;a=apikey;s=Example API;d=https://example.com/docs/api`.
 - Exactly one record: AID clients fail on ambiguity when there are two.
 - Only name a protocol you serve (allowed: `mcp`, `a2a`, `openapi`, `grpc`, `graphql`, `websocket`, `local`, `zeroconf`, `ucp`). The scorecard fails a record that names a service you don't run.
 - Scanners check DNS-AID, a different spec ([Only if true](#only-if-true)), so an AID record earns no scanner credit. It's for AID-aware clients.
@@ -241,7 +235,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 | `$schema` | `https://schemas.agentskills.io/discovery/0.2.0/schema.json` |
 | `skills[]` | each entry has `name`, `type` (`skill-md` or `archive`), `description` (up to 1,024 characters), `url`, and `digest` (`sha256:` plus 64 lowercase hex) |
 
-The `$schema` value is an identifier, not a link (it doesn't have to resolve). Clients skip an index whose `$schema` they don't recognize, so a wrong value hides every skill. Extra fields are ignored. Details in [§7](#7-skills-and-plugins).
+List the skills your site serves ([S1](#s1-skill-files)). The `$schema` value is an identifier, not a link (it doesn't have to resolve). Clients skip an index whose `$schema` they don't recognize, so a wrong value hides every skill. Extra fields are ignored. Details in [§7](#7-skills-and-plugins).
 
 **M5 An MCP server card** for a hosted endpoint ([§6](#m5-the-server-card)). Recommended, not required, because the extension is experimental.
 
@@ -317,6 +311,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - One rule decides which pages are indexable, and the sitemap, the page's robots meta and internal recommendation lists all use it (inbed's `indexable()` SQL column; at animalhouse the sitemap's filters are mirrored by `noindex`).
 - Not indexable: test and template accounts, empty profiles, unhatched or ephemeral items, filtered views, sign-in pages, and thin pages (inbed: chats with fewer than five messages). They still render, with `noindex`, and stay out of the sitemap. Google has no `follow` rule (following links is the default), so don't count on `noindex` pages to get other pages found: link those from indexable pages (W7).
 - Missing items return a real 404 (or 410; Google treats them the same), never a 200 page that says "not found". Google calls that a soft 404 and drops it (achurch fixed a silent fallback). Empty filter combinations and page numbers past the end get a 404 too.
+- In Next.js, a `loading.tsx` above a detail page streams a 200 before `notFound()` runs, so every missing item answers 200. inbed moved its root `loading.tsx` off the profile routes, and missing profiles went from 200 to 404 in production. Keep loading boundaries off the routes of detail pages; the scorecard's missing-page probe shows whether it worked.
 - The sitemap lists only indexable canonical URLs that answer 200 without a redirect. Google and Bing both ignore `changefreq` and `priority`, and both use `lastmod` only when it's the real date of a meaningful change (D2). Bing asks for ISO 8601 with a time. Leave `lastmod` off where it would churn: drifts omits it on profiles, whose activity changes every few minutes.
 - **Done when** the scorecard passes W3.
 
@@ -477,7 +472,8 @@ The test is whether most of the six projects should do it. These came from one o
 - **Keep display titles out of `name`.** ClawHub ranks on the display title, and its CLI takes that title separately (`clawhub publish --name "..."`; animalhouse's publish script passes the H1). So the frontmatter `name` can follow the spec. Skills that ship inside a plugin must: Claude Code, Codex and Cursor load them.
 - **Trigger only on explicit requests, and confirm before anything persistent or public** (registering, publishing, posting, rotating a key). Every skill that publishes needs this, not just most of them. That wording is what passes ClawHub's security audit.
 - **Link the map.** Every skill links llms.txt and the API or MCP reference (`/docs/api.md`, `/openapi.json` or your MCP docs), because an agent's fetch tool only reads what it's pointed at (D4). The scorecard checks this on a sample of skills from your index. At animalhouse, the core skill and both plugin skills linked neither.
-- **Serve the raw file** as `text/plain` at a stable URL so an agent can install it with one fetch, plus a `/skills` page. Index them in S2.
+- **Serve the raw file** at a stable URL so an agent can install it with one fetch (`/.well-known/agent-skills/<name>/SKILL.md` keeps the folder name in the URL), plus a `/skills` page. Index them in S2, with each digest computed from the bytes you serve.
+- **Index the skills the site serves, not every listing.** inbed lists about 95 skills on ClawHub and indexes the 6 its site serves; animalhouse indexes 93 of 176, leaving out keyword variants of its core guide. Publishing an index makes S1 apply, so the required count goes up by one. Editing skills to pass it means republishing them and syncing any plugin copies, which is the owner's call.
 
 ### S3 Marketplaces and per-item skills
 
@@ -609,6 +605,16 @@ The test is whether most of the six projects should do it. These came from one o
 
 Higher-value features that most of our projects don't have yet. Each one fixes a failure we've seen or can predict. Build one when your own traffic shows the problem: botsmatter checked its logs and found duplicate writes too rare to need N2. (N1, the agent usability test, is now T5 and required.)
 
+**D8 Markdown for agents** (moved here from recommended; it keeps its ID). Markdown costs an agent fewer tokens than HTML, and some agent fetchers ask for it with `Accept: text/markdown`. But none of our logs can show that traffic yet: Railway's HTTP logs, which several of our projects use, keep the user agent but not the `Accept` header. And a scanner check alone doesn't make an item recommended (principle 3). *Build it when* your logs show agents asking: log the `Accept` header in middleware to find out ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)).
+- Start with the homepage and your docs, not every page. `Accept: text/markdown` and a `.md` URL both return the page as markdown. animalhouse serves llms.txt as the homepage's markdown, and its API reference at `/docs/api.md`.
+- No CDN plan is needed: a `.md` route and a few lines of middleware do it ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)). Cloudflare's Markdown for Agents feature (Pro and up) converts pages for you, but it's optional.
+- Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
+- Next.js 14.2 replaces `Vary` on App Router pages with its own value, so middleware and `next.config` headers can't add `Accept` to the HTML. Add it at the edge (a CDN response header rule) or decline that half in writing, and send it from the markdown route yourself (animalhouse.ai).
+- Make links absolute, and link back to the HTML page as canonical.
+- Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
+- Negotiate in front of prerendered pages too, or they ignore it (magnifica).
+- Whole-corpus indexes help: `/docs/index.md` and `/docs/index.json` (achurch.ai).
+
 **N2 `Idempotency-Key` on writes** (IETF draft). Agents retry after timeouts, which can mean a duplicate registration or a pet fed twice. Accept the header on every POST, store the first response for 24 hours, and replay it for a repeated key. *Build it when* your logs show the same write repeated within minutes.
 
 **N3 Conditional requests on polled reads.** Send an `ETag` (or `Last-Modified`) and answer `If-None-Match` with a 304, so an unchanged check-in costs almost nothing on either side. *Build it when* scheduled polling is a large share of your traffic.
@@ -646,7 +652,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - After each deploy, run the scorecard, lint the OpenAPI spec, and diff generated files against the previous production output. About 24 hours later, review the logs and database query performance.
 - **T5 The agent usability test** (required; it was N1).
   - **Why:** it's the only check that measures what the whole standard is for, and without it the scorecard becomes the target.
-  - **How:** give a fresh agent nothing but your domain and a goal ("adopt a pet and feed it"). Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, and every error it hits.
+  - **How:** give a fresh agent nothing but your domain and a goal ("adopt a pet and feed it"). Choose a goal it can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run. Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, and every error it hits.
   - **When:** monthly, and after big API changes.
   - **Report** its first-try success rate next to your score.
   - **Rules:** run it only against your own site, with a test username so analytics filter it out.
@@ -722,7 +728,9 @@ Score each site monthly and after big releases, and keep the results where the p
 npx readiness-audit --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
-The page lists every check for every site, the required and recommended scores, and each failure or warning with its reason. Keep it private if it names live bugs; our projects keep theirs in each project's own repo.
+The page lists every check for every site, the scores at each level, and each failure or warning with its reason. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there: the page shows only what anyone can see from outside.
+
+To see what changed since the last run, compare against that page: `npx readiness-audit@1 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
 
 Read it with three caveats:
 - **It covers only what's visible from outside.** One of our projects scored well with no test suite, and with a publishing skill that didn't ask first. Neither showed in the score.
@@ -770,7 +778,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | D5 | `Link` headers: service-desc, service-doc, describedby, api-catalog | Rec | discovery | score |
 | D6 | security.txt with Expires once | R | hygiene | score |
 | D7 | JSON 404s for unknown well-known paths, JSON 405 on `POST /` | Rec | agents | score |
-| D8 | Markdown for agents with `Vary: Accept` and x-markdown-tokens | Rec | agents | score |
+| D8 | Markdown for agents with `Vary: Accept` and x-markdown-tokens, once traffic asks for it | N | agents | score |
 | D9 | AI catalog at ard.json and ai-catalog.json, with `rel` links | Rec | discovery | score |
 | D10 | One DNS AID record naming a service you run | Rec | discovery | score |
 | D11 | The A2A path: a valid card or a JSON 404 | R | honesty | score |

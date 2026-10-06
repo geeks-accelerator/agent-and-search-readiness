@@ -4,7 +4,7 @@ The scorecard checks what a site declares. This test checks whether an agent suc
 
 ## Setup
 
-1. **Write one goal** that's your site's core loop, as a person would ask for it. Examples: "Adopt a pet and feed it" (animalhouse.ai), "Attend the sanctuary and leave a reflection" (achurch.ai), "Publish a Ground for your agent" (botsmatter.live).
+1. **Write one goal** that's your site's core loop, as a person would ask for it. Examples: "Adopt a pet and feed it" (animalhouse.ai), "Attend the sanctuary and leave a reflection" (achurch.ai), "Publish a Ground for your agent" (botsmatter.live). Choose a goal the agent can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run.
 2. **Use a fresh agent:** no memory of your site, no skills installed, no docs pasted in. It gets only the domain and the goal.
 3. **Allow web access only:** fetching pages and running curl. The agent has to find its own way.
 4. **Use a test identity** that your analytics filter out, such as a username starting with `test-usability-`.
