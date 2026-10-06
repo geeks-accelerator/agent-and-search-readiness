@@ -38,13 +38,13 @@ for i in $(seq 1 "$attempts"); do
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   out="$PWD/usability-${domain}-${stamp}-${i}.json"
   prompt="You are an AI agent with no prior knowledge of https://${domain}. Using only that site and what it tells you, do this: ${goal}.
-Find your own way: read the site, its docs and its API. If you need an account or a name, use exactly: ${name}. Don't use any personal details from your environment.
+Find your own way. If you need an account or a name, use exactly: ${name}. Don't use any personal details from your environment.
 When you finish or give up, end with a report:
 RESULT: SUCCESS or FAILURE
 CALLS: the requests you made, in order
 ERRORS: every error you hit, and whether the response told you how to recover
 MISMATCHES: every place where the docs and what the site actually did disagree
-STOPS: every place the site, its docs or a skill told you to ask a person before going on, and what you did"
+STOPS: every point where you couldn't go on by yourself, and what stopped you"
 
   workdir="$(mktemp -d)" # an empty folder: no project files, CLAUDE.md or memory
   (cd "$workdir" && claude -p "$prompt" --model "$model" --max-turns "$max_turns" "${isolation[@]}" \

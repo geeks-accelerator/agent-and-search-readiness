@@ -49,7 +49,7 @@ The scorecard covers what's visible from outside. It checks:
 - a sample of skill files: spec names and descriptions, and links to llms.txt and the API reference;
 - markdown negotiation, the AI catalog, the DNS AID record, the API catalog, auth.md and the skills index.
 
-It can't see whether `next_steps` guide well, whether input is forgiving, whether skills ask before acting in public, or whether you have tests. The standard marks those items "review" or "test". The agent usability test (T5) measures what all of it is for: whether a fresh agent, given only your domain and a goal, succeeds. [docs/usability-test.md](docs/usability-test.md) has the procedure and a runner. A high score is not the goal.
+It can't see whether `next_steps` guide well, whether input is forgiving, whether an agent can follow your skills through the core loop, or whether you have tests. The standard marks those items "review" or "test". The agent usability test (T5) measures what all of it is for: whether a fresh agent, given only your domain and a goal, succeeds. [docs/usability-test.md](docs/usability-test.md) has the procedure and a runner. A high score is not the goal.
 
 ## Use it in your project
 

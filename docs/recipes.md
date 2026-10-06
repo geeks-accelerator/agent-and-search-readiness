@@ -1,6 +1,6 @@
 # Recipes
 
-Short, working patterns for items in [STANDARD.md](../STANDARD.md), collected from the projects that adopted it. The examples use Next.js App Router route handlers because most of our projects do; the logic carries over to any stack.
+Short, working patterns for items in [STANDARD.md](../STANDARD.md), collected from the projects that adopted it. The examples use Next.js 15 or later (App Router route handlers, where `params` is a promise) because most of our projects do; the logic carries over to any stack.
 
 ## One catch-all for unknown /.well-known paths (D7, D11)
 
@@ -15,8 +15,8 @@ const AVAILABLE = {
   ai_catalog: 'https://example.com/.well-known/ai-catalog.json',
 };
 
-export function GET(_request: Request, { params }: { params: { path: string[] } }) {
-  const path = params.path.join('/');
+export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
+  const path = (await params).path.join('/');
   const a2a = path === 'agent-card.json' || path === 'agent.json';
   return Response.json(
     {
@@ -30,7 +30,7 @@ export function GET(_request: Request, { params }: { params: { path: string[] } 
 }
 ```
 
-Delete any static `public/.well-known/agent-card.json` first: a file in `public/` takes precedence over the route. The other half of D7, a JSON 405 for `POST /`, belongs in middleware.
+Delete any static `public/.well-known/agent-card.json` first: a file in `public/` takes precedence over the route. The other half of D7, a JSON 405 for `POST /`, belongs in middleware (`proxy.ts` in Next.js 16).
 
 ## GET /api: JSON for agents, the docs for browsers (A2)
 
@@ -182,7 +182,7 @@ export const isTestAccount = (username: string) => username.toLowerCase().starts
 Before building this, find out whether anyone asks. Host logs often can't tell you (Railway's keep the user agent but not `Accept`), so log markdown requests in middleware for a few weeks:
 
 ```ts
-// middleware.ts
+// proxy.ts (middleware.ts before Next.js 16)
 const accept = request.headers.get('accept') ?? '';
 if (accept.includes('text/markdown')) {
   console.log(`[markdown] ${request.nextUrl.pathname} | ${request.headers.get('user-agent') ?? '-'}`);
@@ -192,7 +192,7 @@ if (accept.includes('text/markdown')) {
 If agents do ask, start with the homepage. animalhouse serves its llms.txt as the homepage's markdown:
 
 ```ts
-// middleware.ts: Accept: text/markdown on / gets the markdown route
+// proxy.ts: Accept: text/markdown on / gets the markdown route
 if (request.nextUrl.pathname === '/' && accept.includes('text/markdown')) {
   const url = request.nextUrl.clone();
   url.pathname = '/index.md';
@@ -218,4 +218,4 @@ export async function GET() {
 }
 ```
 
-The HTML side needs `Vary: Accept` too, and Next.js 14.2 overwrites `Vary` on App Router pages. Add it with a CDN response header rule, or decline that half in writing.
+The HTML side needs `Vary: Accept` too, and Next.js drops a `Vary` set in middleware or proxy on App Router pages (tested on 14.2 and 16.3). Add it with a CDN response header rule, or decline that half in writing.

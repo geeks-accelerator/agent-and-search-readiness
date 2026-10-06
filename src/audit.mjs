@@ -36,7 +36,7 @@ export const REVIEW = [
   ['A11', 'public and private stated honestly, one privacy filter'],
   ['M2', 'stdio package: saved key, register guard, rotate, User-Agent'],
   ['M3', 'published to npm, the MCP Registry, Smithery and Glama, one version'],
-  ['S1', 'skills trigger on the job and say what lasting actions do, with no ask-first gates on the core loop (the scorecard checks names, descriptions and links on a sample)'],
+  ['S1', 'skills: triggers name the job, lasting actions say what they do, and an agent can follow them through the core loop on its own (the scorecard checks names, descriptions and links on a sample)'],
   ['S3', 'ClawHub owners map'],
   ['S4', 'plugin bundle with generated manifests'],
   ['E1-E6', 'first-call value, reasons to return, scheduled-agent performance'],

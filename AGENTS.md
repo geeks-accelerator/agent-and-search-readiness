@@ -18,8 +18,9 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 - **Every check has an ID that exists in the STANDARD.md checklist.** The tests fail otherwise. A new check needs its item described in STANDARD.md first.
 - **An item belongs in the standard when most projects should do it,** and its level has a stated reason: working agents rely on it, it keeps declarations true, or it's baseline hygiene. A practice from one project goes in "Considered and left out", with the reason.
 - **Claims cite primary sources** (specs, official docs) in §16, with a date. Mark drafts as drafts.
-- **Rules stay project-neutral.** A rule's own example is generic; a project's name appears only with its evidence ("at animalhouse, ..."). Several projects follow this standard, and an example from one reads as that project's spec.
-- **No caution without a named harm** (principle 10). Don't add ask-first lines, disclaimers or restrictions to the standard because they feel safe: projects copy them into their skills and APIs, and they cost adoption.
+- **Examples get copied.** Agents adopting the standard turn its examples into their projects' skills, copy and tests. A rule's example is generic or a `[placeholder]`; a project's name appears only with its evidence ("at animalhouse, ..."). Keep concrete values for real formats (headers, paths, schemas) and for dated evidence. For any other example, ask whether removing it loses information or only concreteness.
+- **Every restriction names the harm it prevents** (principle 10). A restriction added because it feels safe spreads to every project that copies the wording.
+- **Describe the current rule.** How a rule changed goes in CHANGELOG.md and the commit message. Naming a removed rule in the standard or the docs brings it back.
 - **Writing:** plain, direct sentences. No em dashes.
 
 ## Releasing

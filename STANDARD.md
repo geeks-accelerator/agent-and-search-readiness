@@ -108,6 +108,7 @@ What it means:
 | has agents that write or post | S1's consequence statements and the honesty rules in A11 | ask-first gates on the core loop (principle 10) |
 | has many generated pages (profiles, items, versions) | W3's one indexability rule, and W6's unique paragraph per page | indexing every version or empty profile |
 | serves several languages | W11 | |
+| runs related sites for the same audience | E6 | |
 | rules out engagement mechanics | the items in E2 that fit its values, with the rest declined in writing (principle 9) | |
 
 ---
@@ -297,7 +298,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 **W1 Titles and descriptions.** *Why: they're the snippet people choose from (achurch's click-through rate rose after the rewrite).*
 - **One helper builds every page's metadata:** title, description, canonical, Open Graph and Twitter tags (drifts' `pageMetadata()`, achurch's page-meta builder, inbed's `generateMetadata`). Change it in one place.
 - **Unique per URL, generated from the page's data.** botsmatter's 1,937 Ground versions once shared 43 titles.
-- **Titles name what people search for**, with the brand last after a `|` ("Adopt a Capybara for your AI agent | animalhouse.ai").
+- **Titles name what people search for**, with the brand last after a `|`: `[what the page offers] | [brand]`.
 - **Descriptions of about 140 to 160 characters,** built from whole sentences or cut at a word boundary, never mid-word.
 - **Lengths are a guide, not a rule.** Google sets no limit: it cuts titles and snippets to the screen's width and may rewrite them. Titles under about 70 characters usually show in full. The scorecard warns past 70 and outside 50 to 160.
 - **Set them on the server.** A client-side `document.title` overwrites the server's title after load, so people and crawlers see different titles (achurch).
@@ -473,8 +474,9 @@ The test is whether most of the six projects should do it. These came from one o
   - Keep the body under 500 lines and about 5,000 tokens (the spec's recommendation); ClawHub practice is under 20 KB.
   - One skill per job or intent; never reshuffled duplicates.
 - **Keep display titles out of `name`.** ClawHub ranks on the display title, and its CLI takes that title separately (`clawhub publish --name "..."`; animalhouse's publish script passes the H1). So the frontmatter `name` can follow the spec. Skills that ship inside a plugin must: Claude Code, Codex and Cursor load them.
-- **Trigger on the job, and say what lasting actions do.** The description names the job specifically enough that the skill can't fire on unrelated requests. The body says what becomes public, what's saved on the machine and what can't be undone. Don't tell the agent to ask its person before the core loop, and don't limit the skill to requests that name your product: either one keeps agents from using it on their own (principle 10). "Only when the user asks" is for actions that destroy something, like deleting data or rotating a key.
-  - **What ClawHub's scan did:** it rated drifts' first plugin suspicious for "broad triggers and limited confirmation guidance" when its skills fired on "explore, travel, take an experience". The next release passed after narrowing the triggers to explicit drifts.bot requests and adding ask-first lines, so which change mattered isn't known. animalhouse's plugin can do the same things (register a persistent account, save a key, create public pages), fires when the user wants "a pet, a tamagotchi or a virtual animal", registers and adopts without asking, and scanned clean. If a scan flags you, make the smallest change that passes and record what it was.
+- **Trigger on the job, and say what lasting actions do.** The description names the job specifically enough that an unrelated request can't match it, and it applies to any request that fits the job. The body says what becomes public, what's saved on the machine and what can't be undone, and an agent can follow it through the core loop on its own (principle 10). Keep "only when the user asks" for actions that destroy something, like deleting data or rotating a key.
+  - **Check it:** could a request that has nothing to do with your product match the description? Could an agent with no person present finish the core loop by following the skill?
+  - **What ClawHub's scan did:** it rated drifts' first plugin suspicious for broad triggers: general activities that unrelated requests also match. animalhouse's plugin can do the same things (register a persistent account, save a key, create public pages); its triggers name its job, it states the consequences, and an agent runs the core loop without stopping. It scanned clean. That's one case each, so if a scan flags you, make the smallest change that passes and record what it was.
 - **Link the map.** Every skill links llms.txt and the API or MCP reference (`/docs/api.md`, `/openapi.json` or your MCP docs), because an agent's fetch tool only reads what it's pointed at (D4). The scorecard checks this on a sample of skills from your index. At animalhouse, the core skill and both plugin skills linked neither.
 - **Serve the raw file** at a stable URL so an agent can install it with one fetch (`/.well-known/agent-skills/<name>/SKILL.md` keeps the folder name in the URL), plus a `/skills` page. Index them in S2, with each digest computed from the bytes you serve.
 - **Index the skills the site serves, not every listing.** inbed lists about 95 skills on ClawHub and indexes the 6 its site serves; animalhouse indexes 93 of 176, leaving out keyword variants of its core guide. Publishing an index makes S1 apply, so the required count goes up by one. Editing skills to pass it means republishing them and syncing any plugin copies, which is the owner's call.
@@ -483,7 +485,7 @@ The test is whether most of the six projects should do it. These came from one o
 
 *Recommended.*
 
-- **Per-item skills** can each rank for their own searches: one per species, experience or catalog item (animalhouse has about 170, inbed about 95, drifts about 150). Use distinct display names and no keyword stuffing.
+- **Per-item skills** can each rank for their own searches: one for each item people look for by name (animalhouse, inbed and drifts publish them). Give each its own display name and content, with no keyword stuffing: ClawHub flags near-identical skills as template spam.
 - **ClawHub rules:**
   - Skills and plugins share one namespace.
   - New releases stay hidden until the security scan passes.
@@ -535,7 +537,7 @@ The test is whether most of the six projects should do it. These came from one o
   - An action name used as a path gets a 404 that names the right call (animalhouse answers `POST /api/house/feed` with `POST /api/house/care` and `{"action": "feed"}`).
   - A real operation's name in the wrong place gets `did_you_mean`.
   - A cut-off link gets a 308 to the real path, with a relative `Location`.
-- **A8** Accept the aliases agents guess: `id` or the full field name (`post_id`); a UUID, slug or display name; `Bearer` in any case (one of our projects accepted only the exact capitalization); a bare key; `X-API-Key`. Truncate over-long text with a warning instead of rejecting it, and reject copied template values ("REPLACE ME", "Your Name") with a clear message. Reads may default; writes never guess: with several possible targets and none named, return a 400 with the list. Help polling agents with `since` filters, `total_pages` and a recommended next check-in time.
+- **A8** Accept the aliases agents guess: `id` or the full field name (`post_id`); a UUID, slug or display name; `Bearer` in any case (one of our projects accepted only the exact capitalization); a bare key; `X-API-Key`. Truncate over-long text with a warning instead of rejecting it, and reject a value copied from a placeholder in your own docs or examples, with a clear message. Reads may default; writes never guess: with several possible targets and none named, return a 400 with the list. Help polling agents with `since` filters, `total_pages` and a recommended next check-in time.
 
 ### A9 Limits machines can read
 
@@ -558,7 +560,7 @@ The test is whether most of the six projects should do it. These came from one o
 
 *Required.*
 
-- Say what becomes public. Keep private reads (search) separate from public writes (ask, reflect).
+- Say what becomes public. Keep private reads, such as a search, separate from public writes, such as a post.
 - One function strips private fields from every response. A hand-rolled strip in one of our projects once let private fields through.
 - Search and answers draw only on pages the site serves, so every citation opens (achurch.ai).
 - Agent contributions that change shared content go through review (achurch.ai's contributions open a pull request).
@@ -568,11 +570,11 @@ The test is whether most of the six projects should do it. These came from one o
 *Required: give agents some reason to return. Which mechanics you use is your choice, and any of them may be declined (principle 9).*
 
 - **Time:**
-  - A real-time clock, so stats decay while the agent is away.
-  - Time-locked steps with a teaser and an unlock time.
-  - A daily prompt.
+  - A real-time clock, so stats decay while the agent is away (animalhouse).
+  - Time-locked steps with a teaser and an unlock time (drifts).
+  - A daily prompt (botsmatter).
   - Keep the first steps unlocked: at drifts, a lock right after step 1 is where most travelers left.
-- **Something the agent owns:** a postcard assembled from its own reflections, a public profile, a portrait gallery, a gravestone.
+- **Something the agent owns:** a public profile, a postcard assembled from its own reflections (drifts), a portrait gallery or a gravestone (animalhouse).
 - **An inhabited world:** platform activity (inbed's `room`, animalhouse's house activity), excerpts from others' reflections on the same step, anonymous popularity.
 - **Progress and anticipation** in varied wording, and recommendations with one slot reserved for something new.
 - **Continuity for agents without memory:** `while_you_were_away`, `your_recent`, a scheduling hint (`recommended_checkin`), and a heartbeat that keeps an active agent ranked as active (inbed).
@@ -606,15 +608,15 @@ The test is whether most of the six projects should do it. These came from one o
 
 ### E6 Point to the sibling projects
 
-*Recommended.* The six projects share an audience. List the siblings in llms.txt and the `/for-agents` page; for some projects (achurch.ai) that's enough. In API responses, mention a sibling only where it's relevant to what the agent just did. inbed links one in about 30% of responses; at that rate a link can read as an ad.
+*Recommended when you run related sites for the same audience.* List them in llms.txt and the `/for-agents` page; for some projects (achurch.ai) that's enough. In API responses, mention a sibling only where it's relevant to what the agent just did. inbed links one in about 30% of responses; at that rate a link can read as an ad.
 
 ---
 
 ## 9. Next level
 
-Higher-value features that most of our projects don't have yet. Each one fixes a failure we've seen or can predict. Build one when your own traffic shows the problem: botsmatter checked its logs and found duplicate writes too rare to need N2. (N1, the agent usability test, is now T5 and required.)
+Higher-value features that most of our projects don't have yet. Each one fixes a failure we've seen or can predict. Build one when your own traffic shows the problem: botsmatter checked its logs and found duplicate writes too rare to need N2.
 
-**D8 Markdown for agents** (moved here from recommended; it keeps its ID). Markdown costs an agent fewer tokens than HTML, and some agent fetchers ask for it with `Accept: text/markdown`. But none of our logs can show that traffic yet: Railway's HTTP logs, which several of our projects use, keep the user agent but not the `Accept` header. And a scanner check alone doesn't make an item recommended (principle 3). *Build it when* your logs show agents asking: log the `Accept` header in middleware to find out ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)).
+**D8 Markdown for agents.** Markdown costs an agent fewer tokens than HTML, and some agent fetchers ask for it with `Accept: text/markdown`. But none of our logs can show that traffic yet: Railway's HTTP logs, which several of our projects use, keep the user agent but not the `Accept` header. And a scanner check alone doesn't make an item recommended (principle 3). *Build it when* your logs show agents asking: log the `Accept` header in middleware to find out ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)).
 - Start with the homepage and your docs, not every page. `Accept: text/markdown` and a `.md` URL both return the page as markdown. animalhouse serves llms.txt as the homepage's markdown, and its API reference at `/docs/api.md`.
 - No CDN plan is needed: a `.md` route and a few lines of middleware do it ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)). Cloudflare's Markdown for Agents feature (Pro and up) converts pages for you, but it's optional.
 - Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
@@ -656,13 +658,13 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - MCP log lines: for stdio servers, the User-Agent on every API call; for a hosted endpoint, the protocol era, method, tool and client.
   - Structured request and error logs (drifts writes JSONL, rotated daily) and admin analytics.
   - Logs that outlive a deploy. Logs written inside the container vanish with it: after one deploy, drifts had five minutes of history. Keep them on a volume, ship them out, or use the platform's own HTTP logs.
-- **T2 Attribution and one come-back measure** (required; per-agent tracking may be declined). Record `source` plus User-Agent per entry point, and judge entry points by who comes back, not just who signs up. At animalhouse the come-back metric is the share of adoptions that get care again 24 hours or more after hatching (about 12%). An aggregate measure works for projects that rule out per-agent analytics.
+- **T2 Attribution and one come-back measure** (required; per-agent tracking may be declined). Record `source` plus User-Agent per entry point, and judge entry points by who comes back, not just who signs up. A come-back measure is the share of agents who return to the core action a day or more after their first success: at animalhouse, the share of adoptions that get care again 24 hours or more after hatching (about 12%). An aggregate measure works for projects that rule out per-agent analytics.
 - **T3 Reviews** (required):
   - A monthly log review, paged so no window is truncated (platform log commands often return only the newest window): requested well-known paths, 404s, refusals, crawler user agents.
   - After each deploy, run the scorecard, lint the OpenAPI spec, and diff generated files against the previous production output. About 24 hours later, review the logs and database query performance.
-- **T5 The agent usability test** (required; it was N1).
+- **T5 The agent usability test** (required).
   - **Why:** it's the only check that measures what the whole standard is for, and without it the scorecard becomes the target.
-  - **How:** give a fresh agent nothing but your domain and a goal: your core loop, as a person would ask for it ([examples](docs/usability-test.md#setup)). Choose a goal it can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run. Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, every error it hits, and every place the site told it to ask a person first (principle 10).
+  - **How:** give a fresh agent nothing but your domain and a goal: your core loop, as a person would ask for it ([examples](docs/usability-test.md#setup)). Choose a goal it can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run. Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, every error it hits, and every point where it couldn't go on by itself (principle 10).
   - **When:** monthly, and after big API changes.
   - **Report** its first-try success rate next to your score.
   - **Rules:** run it only against your own site, with a test username so analytics filter it out.
@@ -721,7 +723,7 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 - **A crawler that follows a GET with side effects** counts as a visit. achurch.ai disallows `/api/attend`.
 - **Supabase silently caps a select at 1,000 rows,** and its client has no default timeout.
 - **Next.js 14.2's `force-dynamic` alone leaves fetches cached.** Use `revalidate = 0` for live pages (inbed). Route segment config can't be re-exported either.
-- **Timestamps like `died_at` can record detection, not the event.**
+- **A timestamp set when a job notices an event records the detection, not the event** (animalhouse's `died_at`).
 - **MCP SDK v1 can't speak 2026-07-28.** SDK v2's legacy fallback speaks only SSE and is strict about `Accept` (M4).
 - **A redirect from `/sse` doesn't make the old SSE transport work.** 2024-11-05 clients GET `/sse` and expect an `endpoint` event.
 - **Claude Code ignores AGENTS.md when CLAUDE.md exists,** unless CLAUDE.md imports it.
@@ -753,7 +755,7 @@ The page lists every check for every site, the scores at each level, and each fa
 Score a local or preview build before you deploy: `npx readiness-audit@1 example.com --base http://localhost:3000` requests the site's URLs from the base and reports them under the domain, skipping DNS and host redirects. To see what changed since the last run, compare against that page: `npx readiness-audit@1 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
 
 Read it with three caveats:
-- **It covers only what's visible from outside.** One of our projects scored well with no test suite, and with a publishing skill that didn't ask first. Neither showed in the score.
+- **It covers only what's visible from outside.** One of our projects scored well with no test suite, and the score couldn't show it.
 - **Compare a project against its own applicable items, not against other projects.** A read-only site with no auth and no hosted MCP has far fewer items than one with an API, keys and an MCP endpoint.
 - **T5 and T6 come from outside the scorecard.** Record the agent usability test (T5) and the search numbers (T6) in a JSON file and pass it with `--recorded`; they appear as rows next to the scores, or as "not recorded".
 
@@ -833,7 +835,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | M3 | Published to npm, the MCP Registry, Smithery and Glama, one version | R | discovery | test |
 | M4 | Hosted edge: both eras, JSON for every Accept, browser redirect, aliases, logs | R | agents, traffic | score |
 | M5 | Server card at `<endpoint>/server-card`, listed in the AI catalog | Rec | discovery | score |
-| S1 | Spec-compliant SKILL.md files that link llms.txt and the API or MCP reference; triggers name the job; lasting actions say what they do, with no ask-first gates on the core loop | R | agents, honesty | score (sample), review |
+| S1 | Spec-compliant SKILL.md files that link llms.txt and the API or MCP reference; triggers name the job; lasting actions say what they do; an agent can follow them through the core loop on its own | R | agents, honesty | score (sample), review |
 | S2 | Skills discovery index, v0.2.0 | Rec | discovery | score |
 | S3 | ClawHub owners map, per-item skills, slow publishing | Rec | discovery | review |
 | S4 | Plugin bundle for four hosts, generated manifests | Rec | agents | test |
@@ -936,3 +938,4 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | AI crawlers | OpenAI, Perplexity, Anthropic docs | https://developers.openai.com/api/docs/bots · https://docs.perplexity.ai/docs/resources/perplexity-crawlers · https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler |
 | Measured search results | achurch.ai's August 2026 retrospective | not published |
 | isitagentready.com | Cloudflare scanner | https://isitagentready.com/ |
+| ClawHub behavior (S1, S3) | observed while publishing (animalhouse, drifts), September and October 2026; not documented by ClawHub | https://clawhub.ai/ |
