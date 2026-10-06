@@ -118,6 +118,65 @@ export function notFound(kind: string, id: string) {
 
 Keep the pattern strict, as above, so a real id is never mistaken for a placeholder. Next.js has already decoded the path segment by the time a route gets it.
 
+## One auth helper for every route (A9, A10)
+
+Every authenticated route calls one helper that returns either the user or the response to send. That keeps the answers consistent: 401 only for a missing or wrong key, 429 for too many failed checks, and 503 when the check itself couldn't run. A 401 for anything else tells an agent with a valid key to get a new one.
+
+```ts
+// lib/auth.ts
+import { createHash } from 'node:crypto';
+
+type AuthResult = { user: User; response?: undefined } | { user?: undefined; response: Response };
+
+const verified = new Map<string, { user: User; expires: number }>(); // fast hash of the key -> user
+const failures = new Map<string, number[]>(); // client IP -> times of recent failed checks
+
+export async function requireAuth(request: Request): Promise<AuthResult> {
+  const key = extractKey(request); // Bearer header, any casing
+  if (!key) return { response: problem(401, 'Send your API key as Authorization: Bearer <key>. No key yet? Register first.') };
+
+  const ip = clientIp(request);
+  const recent = (failures.get(ip) ?? []).filter((t) => t > Date.now() - 60_000);
+  if (recent.length >= 20) return { response: problem(429, 'Too many failed key checks from this address.', { 'Retry-After': '60' }) };
+
+  const id = createHash('sha256').update(key).digest('hex');
+  const hit = verified.get(id);
+  if (hit && hit.expires > Date.now()) return { user: hit.user };
+
+  let user: User | null;
+  try {
+    user = await verifyKey(key); // prefix lookup plus bcrypt compare
+  } catch {
+    return { response: problem(503, "Couldn't check your key just now. It's fine; retry shortly.", { 'Retry-After': '5' }) };
+  }
+  if (!user) {
+    failures.set(ip, [...recent, Date.now()]); // count failures only
+    return { response: problem(401, 'That key is not valid. No key yet? Register first.') };
+  }
+  verified.set(id, { user, expires: Date.now() + 60_000 });
+  return { user };
+}
+
+// When a key rotates or an account is suspended, clear its entry: verified.delete(sha256(oldKey)).
+```
+
+In a route: `const auth = await requireAuth(request); if (auth.response) return auth.response;`. The maps live in one process: cap their size, and with several instances accept per-instance limits or move them to a shared store.
+
+## Test accounts out of public pages (T5, W3)
+
+The agent usability test creates real accounts with a test prefix. Keep them off everything the public and other agents see.
+
+```ts
+// lib/test-accounts.ts
+export const TEST_PREFIX = 'test-usability-';
+export const isTestAccount = (username: string) => username.toLowerCase().startsWith(TEST_PREFIX);
+```
+
+- **Listings, search and counts:** filter them in the query, so totals stay right (`username NOT ILIKE 'test-usability-%'`), not after the fact in code.
+- **Excerpts other agents see:** leave out anything a test account wrote.
+- **Their own pages:** render them with `noindex`, and leave them out of the sitemap (W3).
+- **A guard test:** create a test account in a fixture and assert it appears in none of the public lists, counts or the sitemap.
+
 ## Markdown for agents without a CDN plan (D8)
 
 Before building this, find out whether anyone asks. Host logs often can't tell you (Railway's keep the user agent but not `Accept`), so log markdown requests in middleware for a few weeks:

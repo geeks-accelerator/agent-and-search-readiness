@@ -1,6 +1,25 @@
 # Changelog
 
-## 1.1.0 (2026-10-06)
+## 1.2.0 (2026-10-06)
+
+From drifts.bot's switch-over, the third project to adopt the standard. One new warning (D4), no new failures. It also ships 1.1.0, which wasn't published to npm.
+
+- **`--base <url>` scores a build before it ships:** a local server or a preview deployment, as the domain. The site's URLs are requested from the base and reported under the domain; a private address is allowed there because you chose it, while everything else the site links to still has to be public. D10 (DNS) and W2's host redirects are skipped.
+- **D4 follows llms.txt's links.** It samples up to 10 of the site's own links and warns about missing pages (404 or 410), server errors and no answer. Endpoints that want a key (401, 403) are fine, and templates like `{id}` are skipped. A warning lowers the required score until fixed, but doesn't change the exit code.
+- **D10 asks public resolvers first** (1.1.1.1, then 8.8.8.8, then the system's), and its failures say that DNS answers stay cached until their TTL runs out.
+- **The status page names the pinned command** (`npx readiness-audit@1 --matrix ...`), as §14 says to run it.
+- **T6 takes structured numbers** in `recorded.json` (period; clicks, impressions, CTR, position, indexed, not indexed, crawled but not indexed; for Google and Bing), and the status page shows them. A free-text `result` still works.
+- **The T5 runner** takes `--attempts`, `--model`, `--max-turns` and `--pause`, runs each attempt in an empty folder with no user settings or MCP servers (and `--bare` when `ANTHROPIC_API_KEY` is set), gives the agent a random test name, and asks for doc mismatches as well as errors.
+- **STANDARD.md:**
+  - A9, A10: a limit on key checks answers 429, never 401, and counts only failures; a database error is 503; cache verified keys when the hash is slow; one auth helper for every route.
+  - T1, T3: logs outlive a deploy; page through platform logs.
+  - T5: keep test accounts off public pages, keep the agent fresh, budget the runs, report doc mismatches.
+  - T6: record fields, not prose; it takes a person with console access.
+  - §12 gotchas: Next.js drops a `Vary` set in middleware, proxy or `next.config` on App Router pages (tested on 14.2 and 16.3); `robots.ts` can't output `Content-Signal`; Redocly needs `security: []` on public operations; zod-to-openapi v7 with Zod 3 needed `extendZodWithOpenApi`; container logs vanish on deploy.
+- **docs/recipes.md:** one auth helper for every route, and test accounts kept off public pages.
+- **AGENTS.md:** a new warning is a minor version; a new failure is a major one.
+
+## 1.1.0 (2026-10-06, not published to npm; shipped in 1.2.0)
 
 From inbed.ai's switch-over, the second project to adopt the standard. Nothing gets stricter.
 

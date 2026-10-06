@@ -18,11 +18,11 @@ Everything below is for that agent. animalhouse.ai switched over first and went 
    - **Only declare what's true (D12).** No A2A card without an A2A endpoint, no OAuth server metadata without an OAuth server, no MCP server card that isn't the v1 schema. Answer with an honest JSON 404 that points to what you do serve.
    - **Decline in writing (principle 9).** If an item doesn't fit your project, list it under "Declined items" in the stub with the reason. Never fake a pass.
 
-4. **Verify and ship:** build and test, deploy, then run `npx readiness-audit@1 <your-domain> --compare docs/readiness-status.md` against production to see what changed, regenerate the status page, and commit. The required count can grow as items start to apply (publishing a skills index makes S1 apply), so compare item by item, not just the totals.
+4. **Verify and ship:** build and test, and score the local build before you deploy: `npx readiness-audit@1 <your-domain> --base http://localhost:<port>`. After the deploy, run `npx readiness-audit@1 <your-domain> --compare docs/readiness-status.md` against production to see what changed, regenerate the status page, and commit. The required count can grow as items start to apply (publishing a skills index makes S1 apply), so compare item by item, not just the totals.
 
 5. **Ask the owner before publishing anything:** npm, the MCP Registry, Smithery, ClawHub, DNS, CDN settings, database migrations. On ClawHub, publish each skill only from the account that owns it.
 
-T5 (the agent usability test) and T6 (search numbers) are required, but they're recorded by hand: see [usability-test.md](usability-test.md). Leave them "not recorded" until you have real results.
+T5 (the agent usability test) and T6 (search numbers) are required, but they're recorded by hand: see [usability-test.md](usability-test.md). Leave them "not recorded" until you have real results. For T5, keep its test accounts off public pages, set a model and a turn limit, and make sure the agent knows nothing about you. T6 needs a person with Search Console access.
 
 ## Lessons from the projects that switched over
 
@@ -32,6 +32,9 @@ T5 (the agent usability test) and T6 (search numbers) are required, but they're 
 - Field descriptions that Zod emits inside `anyOf` count as missing (A1): call `.describe()` last, after `.nullable()`.
 - Skills: each SKILL.md's `name` must be its folder slug. Index the skills your site serves, not every ClawHub listing. Serve the files at `/.well-known/agent-skills/<name>/SKILL.md`, and compute the digest from the bytes you serve.
 
-Working patterns for several items (a `/.well-known` catch-all, `GET /api` for browsers, `did_you_mean`, unreplaced placeholders, markdown routes) are in [recipes.md](recipes.md).
+- Answer a failed key check with 401 only when the key is wrong: a rate limit is 429 and a database error is 503 (A9, A10). Otherwise agents with good keys register again.
+- Keep logs somewhere a deploy can't wipe them, or the monthly review (T3) has nothing to read.
+
+Working patterns for several items (a `/.well-known` catch-all, `GET /api` for browsers, `did_you_mean`, unreplaced placeholders, one auth helper, test accounts, markdown routes) are in [recipes.md](recipes.md).
 
 When you're done, report the `--compare` output (what changed), the score before and after, and anything you declined.

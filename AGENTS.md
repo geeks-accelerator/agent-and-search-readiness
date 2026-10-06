@@ -23,7 +23,7 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 ## Releasing
 
 1. Change `version` in `package.json` and `VERSION` in `src/audit.mjs` together (a test checks they match).
-2. Add a CHANGELOG entry. A new required check, or a check that gets stricter, is a major version: projects pin `readiness-audit@1`, and a new failure shouldn't reach them unannounced.
+2. Add a CHANGELOG entry. A new required check, or a check that can newly fail, is a major version: projects pin `readiness-audit@1`, and a new failure shouldn't reach them unannounced. A new warning is a minor version: it doesn't change the exit code, but it can lower a score, so the changelog says so.
 3. `npm test`, then run the CLI against two or three real sites and read the output.
 4. Commit, push, and publish a GitHub release tagged `v<version>`. The Release workflow checks the tag against package.json, runs the tests, and publishes to npm through trusted publishing (no token).
 

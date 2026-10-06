@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -107,4 +107,51 @@ test('compareResults sorts every change into one list', () => {
   assert.deepEqual(cmp.newlyChecked, ['S1 (required, pass)', 'W1 (required, warn)']);
   assert.deepEqual(formatComparison(cmp, '2026-10-05').slice(0, 2), ['Since 2026-10-05:', '  Better: D8 (warn to pass)']);
   assert.deepEqual(formatComparison(compareResults(new Map([['D1', { status: 'pass', level: 'required' }]]), [{ id: 'D1', status: 'pass', level: 'required' }]), 'x'), ['Since x: no changes.']);
+});
+
+test('spread picks evenly and keeps short lists whole', () => {
+  assert.deepEqual(spread([1, 2, 3], 5), [1, 2, 3]);
+  assert.deepEqual(spread([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 5), [0, 2, 4, 6, 8]);
+});
+
+test('llmsLinks keeps the site\'s own links and skips anchors, templates and other sites', () => {
+  const hosts = new Set(['example.com', 'www.example.com']);
+  const text = [
+    '# Example',
+    '- [Docs](https://example.com/docs/api "title")',
+    '- [Agents](/agents) and <https://example.com/llms-full.txt>',
+    '- Read https://example.com/guide. Elsewhere: https://other.org/x',
+    '- [Top](#top), [a creature](https://example.com/creatures/{username}/{name}), GET /api/agents/:id',
+    '- https://www.example.com/hall',
+  ].join('\n');
+  assert.deepEqual(llmsLinks(text, 'https://example.com/llms.txt', hosts), [
+    'https://example.com/docs/api',
+    'https://example.com/agents',
+    'https://example.com/llms-full.txt',
+    'https://example.com/guide',
+    'https://www.example.com/hall',
+  ]);
+});
+
+test('baseMapper sends the site\'s URLs to the base and maps them back', () => {
+  const { baseOrigin, toBase, fromBase } = baseMapper('example.com', 'http://localhost:3000/ignored-path');
+  assert.equal(baseOrigin, 'http://localhost:3000');
+  assert.equal(toBase('https://example.com/a?b=1'), 'http://localhost:3000/a?b=1');
+  assert.equal(toBase('https://www.example.com/'), 'http://localhost:3000/');
+  assert.equal(toBase('https://cdn.example.org/x.png'), 'https://cdn.example.org/x.png');
+  assert.equal(fromBase('http://localhost:3000/a?b=1'), 'https://example.com/a?b=1');
+  assert.equal(fromBase('http://localhost:3000'), 'https://example.com/');
+  assert.equal(fromBase('http://localhost:30001/x'), 'http://localhost:30001/x');
+  const off = baseMapper('example.com', null);
+  assert.equal(off.toBase('https://example.com/a'), 'https://example.com/a');
+});
+
+test('formatRecorded shows structured T6 numbers and free text', () => {
+  assert.equal(formatRecorded(undefined), 'not recorded');
+  assert.equal(formatRecorded({ result: '4 of 5 first try', date: '2026-10-12' }), '4 of 5 first try (2026-10-12)');
+  assert.equal(formatRecorded({ result: 'clicks 24 | CTR 3.8%' }), 'clicks 24 / CTR 3.8%');
+  assert.equal(
+    formatRecorded({ period: 'last 3 months', google: { clicks: 24, impressions: 630, ctr: 3.8, position: 18.2, indexed: 120, crawled_not_indexed: 40 }, bing: { clicks: 31 }, date: '2026-10-01' }),
+    'Google: 24 clicks, 630 impressions, 3.8% CTR, position 18.2; 120 indexed, 40 crawled but not indexed. Bing: 31 clicks (last 3 months, 2026-10-01)',
+  );
 });

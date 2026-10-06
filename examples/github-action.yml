@@ -16,3 +16,5 @@ jobs:
           node-version: 22
       - name: Score the live site
         run: npx --yes readiness-audit@1 example.com
+      # To score a preview deployment before it ships, point --base at it:
+      #   npx --yes readiness-audit@1 example.com --base https://pr-42.example-preview.app

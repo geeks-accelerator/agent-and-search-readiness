@@ -12,8 +12,77 @@ export const SKILL_NAME = /^(?!-)(?!.*--)[a-z0-9-]{1,64}(?<!-)$/;
 export function sampleSkillEntries(list) {
   const md = (Array.isArray(list) ? list : []).filter((e) => typeof e?.url === 'string'
     && (e.type === 'skill-md' || (e.type === undefined && /\.md$/i.test(e.url.split(/[?#]/)[0]))));
-  return md.length <= 5 ? md : [0, 1, 2, 3, 4].map((i) => md[Math.floor((i * md.length) / 5)]);
+  return spread(md, 5);
 }
+
+/** Up to n items, spread evenly across the list (the first item always included). */
+export function spread(list, n) {
+  return list.length <= n ? list : Array.from({ length: n }, (_, i) => list[Math.floor((i * list.length) / n)]);
+}
+
+/**
+ * The site's own links in an llms.txt: markdown links and bare URLs, resolved
+ * against the file's URL, without fragments, kept only when they point at one
+ * of the site's hosts. Templates such as /creatures/{id} are skipped.
+ */
+export function llmsLinks(text, llmsUrl, hosts) {
+  const raw = [
+    ...[...String(text ?? '').matchAll(/\]\(\s*<?([^)\s>]+)>?[^)]*\)/g)].map((m) => m[1]),
+    ...[...String(text ?? '').matchAll(/\bhttps?:\/\/[^\s)>\]"'`]+/g)].map((m) => m[0]),
+  ];
+  const out = new Set();
+  for (const href of raw) {
+    if (href.startsWith('#')) continue; // an anchor in the file itself
+    if (/[{}]|%7B|%7D|\/:[a-z_]+|YOUR_|\.\.\./i.test(href)) continue; // a template ({id}, :id), not a link
+    let u;
+    try { u = new URL(href.replace(/[.,;:!?]+$/, ''), llmsUrl); } catch { continue; }
+    if (!['http:', 'https:'].includes(u.protocol) || !hosts.has(u.hostname)) continue;
+    u.hash = '';
+    out.add(u.href);
+  }
+  return [...out];
+}
+
+/**
+ * For --base: request a local or preview build as if it were the domain.
+ * toBase() sends the site's URLs (the domain or its www twin) to the base;
+ * fromBase() maps them back, so every check keeps seeing the domain's URLs.
+ */
+export function baseMapper(domain, base) {
+  const hosts = new Set([domain, domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`]);
+  const baseOrigin = base ? new URL(base).origin : null;
+  const toBase = (url) => {
+    if (!baseOrigin) return url;
+    let u;
+    try { u = new URL(url); } catch { return url; }
+    return hosts.has(u.hostname) ? baseOrigin + u.pathname + u.search : url;
+  };
+  const fromBase = (url) => (baseOrigin && (url === baseOrigin || url.startsWith(`${baseOrigin}/`) || url.startsWith(`${baseOrigin}?`)) ? `https://${domain}${url.slice(baseOrigin.length) || '/'}` : url);
+  return { baseOrigin, toBase, fromBase };
+}
+
+/**
+ * A recorded T5 or T6 result for the status page. T6 may be structured
+ * ({ period, google: { clicks, impressions, ctr, position, indexed,
+ * not_indexed, crawled_not_indexed }, bing: { ... } }); otherwise the free-text
+ * `result` is shown. Pipes are replaced so the table stays intact.
+ */
+export function formatRecorded(x) {
+  if (!x) return 'not recorded';
+  const num = (v, label) => (v === undefined || v === null || v === '' ? null : `${v}${label}`);
+  const traffic = (o) => [num(o.clicks, ' clicks'), num(o.impressions, ' impressions'), num(o.ctr, '% CTR'), o.position != null ? `position ${o.position}` : null].filter(Boolean).join(', ');
+  const parts = [];
+  if (x.google && typeof x.google === 'object') {
+    const g = x.google;
+    const index = [num(g.indexed, ' indexed'), num(g.not_indexed, ' not indexed'), num(g.crawled_not_indexed, ' crawled but not indexed')].filter(Boolean).join(', ');
+    parts.push(`Google: ${[traffic(g), index].filter(Boolean).join('; ')}`);
+  }
+  if (x.bing && typeof x.bing === 'object') parts.push(`Bing: ${traffic(x.bing)}`);
+  const when = [parts.length ? x.period : null, x.date].filter(Boolean).join(', ');
+  const text = parts.length ? parts.join('. ') : String(x.result ?? '');
+  return `${text}${when ? ` (${when})` : ''}`.replace(/\|/g, '/');
+}
+
 
 const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
 

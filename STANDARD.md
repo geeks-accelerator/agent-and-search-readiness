@@ -130,7 +130,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 
 **D3 Server-rendered pages.** Every page's content is in the HTML the server sends, not loaded later by script, with a real logo through the framework's icon convention and a favicon set (missing icons show up as steady 404s). *Why: crawlers, link-preview bots and agents that fetch pages read the HTML, and many don't run JavaScript.* inbed's chat pages once shipped none of their 48 messages in the HTML. The page-level details (titles, canonicals, structured data, previews, headings, links) are W1 to W7 in [§5](#5-search-people-and-answer-engines).
 
-**D4 `/llms.txt` and `/llms-full.txt`**: a short map (what this is, how to start, links to every other surface) and the whole corpus in one fetch. Generate both and test them against the sitemap. The file is markdown; serve it as `text/markdown` or `text/plain`, and use the same type wherever you link it.
+**D4 `/llms.txt` and `/llms-full.txt`**: a short map (what this is, how to start, links to every other surface) and the whole corpus in one fetch. Generate both and test them against the sitemap: agents follow the links, so every one must open. The scorecard samples them and warns about missing pages (an endpoint that answers 401 for want of a key is fine; templates like `{id}` are skipped). The file is markdown; serve it as `text/markdown` or `text/plain`, and use the same type wherever you link it.
 - *Why required: traffic, and not from Google.* Google Search ignores llms.txt (it said so in June 2026), but plenty else reads it. At animalhouse, 79 requests in four and a half days came from:
   - agent directories (AgenstryBot, BrickBlueBot, agentprobe, MCPHarbor, AgentTrustBot);
   - llms.txt directories and validators;
@@ -164,7 +164,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - Every operation has a description saying when and why to call it. A one-line summary isn't enough, and the scorecard notes descriptions that only repeat the summary. A "When to use" line per operation in your API reference makes a good source, and agents reading the markdown get it too (inbed).
 - Every parameter and request field is described. Response fields too, once you have response schemas (N7).
 - Put each description on the field itself. One inside `anyOf` or `oneOf` counts as missing, because many clients show only the field's own description. Zod puts it there for `.nullable()` when `.describe()` comes first, so call `.describe()` last, after `.optional()` and `.nullable()`.
-- **Done when** the scorecard passes A1 and `npx @redocly/cli lint` passes. Checking the spec against real responses needs response schemas, so that contract test lives with N7.
+- **Done when** the scorecard passes A1 and `npx @redocly/cli lint` passes. Redocly fails public operations that don't declare `security: []` when the spec has a global security scheme. Checking the spec against real responses needs response schemas, so that contract test lives with N7.
 
 **A2 `GET /api`**: a JSON index of every operation, generated from the spec. *Why: agents ask for it (19 requests in four days at animalhouse, curl most often).* A browser asking for HTML can be redirected to the docs ([recipe](docs/recipes.md#get-api-json-for-agents-the-docs-for-browsers-a2)).
 
@@ -199,6 +199,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - `v`, `u` and `p` are required and `a` is recommended. `s` is a description of up to 60 bytes; `d` is the docs URL.
 - `a` is the auth hint. AID v2.1.1 allows `none`, `pat`, `apikey`, `basic`, `oauth2_device`, `oauth2_code`, `mtls` and `custom`. For an API that takes keys: `v=aid2;u=https://example.com/openapi.json;p=openapi;a=apikey;s=Example API;d=https://example.com/docs/api`.
 - Exactly one record: AID clients fail on ambiguity when there are two.
+- After a change, resolvers keep the old answer until its TTL runs out, so an old record can show for minutes. The scorecard asks public resolvers first and says so when D10 fails.
 - Only name a protocol you serve (allowed: `mcp`, `a2a`, `openapi`, `grpc`, `graphql`, `websocket`, `local`, `zeroconf`, `ucp`). The scorecard fails a record that names a service you don't run.
 - Scanners check DNS-AID, a different spec ([Only if true](#only-if-true)), so an AID record earns no scanner credit. It's for AID-aware clients.
 
@@ -216,6 +217,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 **D15 Name the AI crawlers you welcome, and state a Content-Signal policy.** *Why: it states intent, and scanners check it. It's Cloudflare's policy, not a standard, and Google ignores it.*
 - Training, search and live-fetch bots are separate user agents: GPTBot, OAI-SearchBot and ChatGPT-User; ClaudeBot, Claude-SearchBot and Claude-User; PerplexityBot and Perplexity-User; Google-Extended; Applebot-Extended; and so on.
 - `Content-Signal: search=yes, ai-input=yes, ai-train=yes` (or your actual choices) in every group: a line in the `*` group never reaches a bot with its own group.
+- In Next.js, `robots.ts` can't output `Content-Signal`, so serve robots.txt from a route handler (animalhouse, drifts).
 - Watch the IETF's AIPREF drafts, which define a successor (a `Content-Usage` rule and header with the vocabulary `train-ai`, `ai-use`, `search` and values `y`/`n`).
 
 **A3 `/.well-known/api-catalog`** (RFC 9727): a linkset served as `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`. Serve it from a route, because a prerendered extensionless file loses its content type (magnifica). *Why: baseline hygiene. It's an RFC and scanners check it, but one crawler asked for it in four days.*
@@ -309,7 +311,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 
 **W3 One rule for what's indexable.** *Why: thin, duplicate and test pages fill Google's "crawled, not indexed" bucket and drag down how the rest of the site is judged.*
 - One rule decides which pages are indexable, and the sitemap, the page's robots meta and internal recommendation lists all use it (inbed's `indexable()` SQL column; at animalhouse the sitemap's filters are mirrored by `noindex`).
-- Not indexable: test and template accounts, empty profiles, unhatched or ephemeral items, filtered views, sign-in pages, and thin pages (inbed: chats with fewer than five messages). They still render, with `noindex`, and stay out of the sitemap. Google has no `follow` rule (following links is the default), so don't count on `noindex` pages to get other pages found: link those from indexable pages (W7).
+- Not indexable: test and template accounts ([recipe](docs/recipes.md#test-accounts-out-of-public-pages-t5-w3)), empty profiles, unhatched or ephemeral items, filtered views, sign-in pages, and thin pages (inbed: chats with fewer than five messages). They still render, with `noindex`, and stay out of the sitemap. Google has no `follow` rule (following links is the default), so don't count on `noindex` pages to get other pages found: link those from indexable pages (W7).
 - Missing items return a real 404 (or 410; Google treats them the same), never a 200 page that says "not found". Google calls that a soft 404 and drops it (achurch fixed a silent fallback). Empty filter combinations and page numbers past the end get a 404 too.
 - In Next.js, a `loading.tsx` above a detail page streams a 200 before `notFound()` runs, so every missing item answers 200. inbed moved its root `loading.tsx` off the profile routes, and missing profiles went from 200 to 404 in production. Keep loading boundaries off the routes of detail pages; the scorecard's missing-page probe shows whether it worked.
 - The sitemap lists only indexable canonical URLs that answer 200 without a redirect. Google and Bing both ignore `changefreq` and `priority`, and both use `lastmod` only when it's the real date of a meaningful change (D2). Bing asks for ISO 8601 with a time. Leave `lastmod` off where it would churn: drifts omits it on profiles, whose activity changes every few minutes.
@@ -538,12 +540,17 @@ The test is whether most of the six projects should do it. These came from one o
 *Required.*
 
 - `Retry-After` on every 429 (RFC 6585 defines 429, RFC 9110 defines `Retry-After`).
+- **A limit on key checks answers 429, never 401.** A 401 tells an agent with a valid key that its key is bad, and it may register again (drifts' busy agents got "include your API key"). Count only failed checks toward that limit.
 - A usage endpoint (inbed's `GET /api/rate-limits`), and the limits listed in llms.txt and auth.md.
 - `RateLimit` headers on every response are the next level (N10).
 
 ### A10 Identity and keys
 
 *Required where agents register.* Self-service registration with no human in the loop, a rotation endpoint, and a `source` attribution tag for each entry point plus the User-Agent. Never fail a sign-up over a bad tag.
+
+- **Failing to check a key isn't a bad key.** A database error while verifying answers 503 with `Retry-After`, not 401.
+- **With a slow hash such as bcrypt, cache verified keys** for a minute or so, keyed by a fast hash of the key, and drop the entry when the key rotates (inbed, drifts). Otherwise every request pays a full compare, and junk keys cost the same.
+- **One auth helper answers for every route.** It returns the user or the response to send (`{ user } | { response }`), so every route answers the same way ([recipe](docs/recipes.md#one-auth-helper-for-every-route-a9-a10)).
 
 ### A11 Honesty and privacy
 
@@ -609,7 +616,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - Start with the homepage and your docs, not every page. `Accept: text/markdown` and a `.md` URL both return the page as markdown. animalhouse serves llms.txt as the homepage's markdown, and its API reference at `/docs/api.md`.
 - No CDN plan is needed: a `.md` route and a few lines of middleware do it ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)). Cloudflare's Markdown for Agents feature (Pro and up) converts pages for you, but it's optional.
 - Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
-- Next.js 14.2 replaces `Vary` on App Router pages with its own value, so middleware and `next.config` headers can't add `Accept` to the HTML. Add it at the edge (a CDN response header rule) or decline that half in writing, and send it from the markdown route yourself (animalhouse.ai).
+- Next.js drops a `Vary` set in middleware, proxy or `next.config` on App Router pages, static or dynamic, while it keeps the other headers (tested on 14.2 and 16.3). So `Accept` has to reach the HTML from the edge (a CDN response header rule), or decline that half in writing. Send it from the markdown route yourself (animalhouse.ai).
 - Make links absolute, and link back to the HTML page as canonical.
 - Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
 - Negotiate in front of prerendered pages too, or they ignore it (magnifica).
@@ -646,9 +653,10 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - **T1 Logs** (required):
   - MCP log lines: for stdio servers, the User-Agent on every API call; for a hosted endpoint, the protocol era, method, tool and client.
   - Structured request and error logs (drifts writes JSONL, rotated daily) and admin analytics.
+  - Logs that outlive a deploy. Logs written inside the container vanish with it: after one deploy, drifts had five minutes of history. Keep them on a volume, ship them out, or use the platform's own HTTP logs.
 - **T2 Attribution and one come-back measure** (required; per-agent tracking may be declined). Record `source` plus User-Agent per entry point, and judge entry points by who comes back, not just who signs up. At animalhouse the come-back metric is the share of adoptions that get care again 24 hours or more after hatching (about 12%). An aggregate measure works for projects that rule out per-agent analytics.
 - **T3 Reviews** (required):
-  - A monthly log review, paged so no window is truncated: requested well-known paths, 404s, refusals, crawler user agents.
+  - A monthly log review, paged so no window is truncated (platform log commands often return only the newest window): requested well-known paths, 404s, refusals, crawler user agents.
   - After each deploy, run the scorecard, lint the OpenAPI spec, and diff generated files against the previous production output. About 24 hours later, review the logs and database query performance.
 - **T5 The agent usability test** (required; it was N1).
   - **Why:** it's the only check that measures what the whole standard is for, and without it the scorecard becomes the target.
@@ -656,11 +664,16 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - **When:** monthly, and after big API changes.
   - **Report** its first-try success rate next to your score.
   - **Rules:** run it only against your own site, with a test username so analytics filter it out.
+  - **Keep test accounts out of public pages:** one helper recognizes the test prefix; leave those accounts out of public listings, search and counts; `noindex` their pages and keep them out of the sitemap; and guard it with a test ([recipe](docs/recipes.md#test-accounts-out-of-public-pages-t5-w3)).
+  - **Keep the agent fresh,** with none of the operator's memory, settings or account details. drifts' test agent named itself after the operator, taken from its environment.
+  - **Budget it.** An open-ended run on a large model took drifts 7 minutes, 132 turns and $6.85 for one attempt. Set the model and a turn limit, and keep both the same month to month so results compare.
+  - **Report doc mismatches,** not only errors: docs that promise a field or behavior the API doesn't deliver.
   - **The procedure,** a runner script and the results format are in [docs/usability-test.md](docs/usability-test.md).
 - **T6 Search numbers** (required):
   - Verify the site in Google Search Console and Bing Webmaster Tools, and submit the sitemap to both.
   - Review them monthly: coverage (including "crawled, not indexed"), queries, clicks and click-through rate. Re-check about two weeks after an SEO change (inbed).
-  - Record clicks, impressions and click-through rate next to the score, as achurch.ai's retrospective did. They're the outcome the W items are for.
+  - Record the numbers next to the score as fields, not prose, so months compare: the period, clicks, impressions, click-through rate, average position, pages indexed and not indexed, and "crawled, not indexed", for Google and Bing (format: [examples/recorded.json](examples/recorded.json)). They're the outcome the W items are for.
+  - It takes a person, or a browser session, with access to Search Console and Bing Webmaster Tools. There's no unattended way to read them.
   - In analytics, watch referrals from AI answer engines (chatgpt.com, perplexity.ai, copilot.microsoft.com, gemini.google.com, claude.ai).
   - Search Console gained a setting on 2026-08-31 that keeps a site out of Google's AI features. It's on by default, so leave it alone unless you mean to opt out.
 
@@ -691,6 +704,11 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 
 - **robots.txt groups don't merge with `*`.** A crawler named in its own group ignores the `*` group, including its `Disallow` and `Content-Signal` lines.
 - **`Vary: Accept` on only one representation** lets caches mix markdown and HTML.
+- **Next.js drops a `Vary` set in middleware, proxy or `next.config`** on App Router pages, while it keeps the other headers (tested on 14.2 and 16.3). It has to come from the CDN.
+- **Next.js `robots.ts` can't output `Content-Signal`** or other unknown lines. Serve robots.txt from a route handler.
+- **Redocly fails public operations without `security: []`** when the spec has a global security scheme.
+- **zod-to-openapi v7 (Zod 3) needed `extendZodWithOpenApi(z)`** before path and query parameters came through with their descriptions (drifts).
+- **A log written inside the container** is gone after the next deploy.
 - **Prerendered pages skip middleware**, so content negotiation must sit in front of them.
 - **Static extensionless files lose their content type.** Serve `api-catalog` from a route.
 - **Build-time `lastmod` dates on every sitemap URL** say nothing to crawlers.
@@ -725,12 +743,12 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 Score each site monthly and after big releases, and keep the results where the project's agents can read them:
 
 ```
-npx readiness-audit --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
+npx readiness-audit@1 --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
 The page lists every check for every site, the scores at each level, and each failure or warning with its reason. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there: the page shows only what anyone can see from outside.
 
-To see what changed since the last run, compare against that page: `npx readiness-audit@1 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
+Score a local or preview build before you deploy: `npx readiness-audit@1 example.com --base http://localhost:3000` requests the site's URLs from the base and reports them under the domain, skipping DNS and host redirects. To see what changed since the last run, compare against that page: `npx readiness-audit@1 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
 
 Read it with three caveats:
 - **It covers only what's visible from outside.** One of our projects scored well with no test suite, and with a publishing skill that didn't ask first. Neither showed in the score.

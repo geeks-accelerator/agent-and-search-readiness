@@ -6,12 +6,13 @@
 // Read-only: GETs plus a few POSTs that create nothing (an MCP initialize, server/discover and
 // tools/list, an empty POST to /). Node 20+, no dependencies.
 
-import { lookup, resolveTxt } from 'node:dns/promises';
+import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
+import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
@@ -71,6 +72,19 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
+// TXT lookups go to public resolvers first: the machine's own resolver can hold an answer
+// from before a change. Falls back to the system resolver when they can't be reached.
+async function resolveTxtFresh(name) {
+  try {
+    const resolver = new Resolver({ timeout: 3000, tries: 2 });
+    resolver.setServers(['1.1.1.1', '8.8.8.8']);
+    return await resolver.resolveTxt(name);
+  } catch (e) {
+    if (e?.code === 'ENOTFOUND' || e?.code === 'ENODATA') throw e; // a real answer: no record
+    return resolveTxt(name);
+  }
+}
+
 // Which URLs the audit may request. The site you chose to audit (and its www or bare variant) is
 // always allowed; anything else must be a public http(s) address, checked again at every redirect hop.
 export function makeGuard(domain) {
@@ -92,28 +106,32 @@ export function makeGuard(domain) {
   return { siteHosts, isSafe };
 }
 
-export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
+export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = null } = {}) {
   const BASE = `https://${domain}`;
   const rand = Math.random().toString(36).slice(2, 10);
 
   const { siteHosts, isSafe } = makeGuard(domain);
+  // --base scores a local or preview build as the domain: the site's URLs are requested from the
+  // base (which may be a local address, because you chose it) and reported under the domain.
+  const { baseOrigin, toBase, fromBase } = baseMapper(domain, base);
 
   // Redirects are followed here, one hop at a time, so every hop passes isSafe.
   async function get(path, { headers = {}, method = 'GET', body, redirect = 'follow' } = {}) {
-    let url = path.startsWith('http') ? path : BASE + path;
+    let url = path.startsWith('http') ? path : BASE + path; // always in the domain's terms
     let m = method, b = body;
     for (let hop = 0; ; hop++) {
-      if (!(await isSafe(url))) return { status: 0, headers: new Headers(), text: '', url, type: '', error: 'refused: not a public address' };
+      const target = toBase(url);
+      if (target === url && !(await isSafe(url))) return { status: 0, headers: new Headers(), text: '', url, type: '', error: 'refused: not a public address' };
       let res;
       try {
-        res = await fetch(url, { method: m, body: b, redirect: 'manual', headers: { 'user-agent': UA, ...headers }, signal: AbortSignal.timeout(15000) });
+        res = await fetch(target, { method: m, body: b, redirect: 'manual', headers: { 'user-agent': UA, ...headers }, signal: AbortSignal.timeout(15000) });
       } catch (e) {
         return { status: 0, headers: new Headers(), text: '', url, type: '', error: e.message };
       }
       const loc = res.headers.get('location');
       if (redirect === 'follow' && res.status >= 300 && res.status < 400 && loc && hop < 5) {
         try { await res.body?.cancel(); } catch { /* already closed */ }
-        url = new URL(loc, url).href;
+        url = fromBase(new URL(loc, target).href);
         if (res.status !== 307 && res.status !== 308) { m = 'GET'; b = undefined; }
         continue;
       }
@@ -123,8 +141,10 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   }
   // fetch() always sends an Accept header, so the "no Accept" MCP probe uses node:https.
   function postNoAccept(path, payload) {
+    const target = new URL(toBase(BASE + path));
+    const send = target.protocol === 'http:' ? httpRequest : httpsRequest;
     return new Promise((resolve) => {
-      const req = httpsRequest(BASE + path, { method: 'POST', timeout: 15000, headers: { 'user-agent': UA, 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => {
+      const req = send(target, { method: 'POST', timeout: 15000, headers: { 'user-agent': UA, 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => {
         let text = '';
         res.on('data', (c) => { text += c; });
         res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'] ?? '', text }));
@@ -241,9 +261,18 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   // ---- D4 llms.txt ----
   {
     const id = 'D4', name = 'llms.txt and llms-full.txt', level = 'required';
+    // Agents follow the links in llms.txt, so a sample of the site's own links must answer 200.
+    const links = ok(llms) ? llmsLinks(llms.text, `${BASE}/llms.txt`, siteHosts) : [];
+    const sample = spread(links, 10);
+    const answers = await mapLimit(sample, 4, async (u) => ({ u, r: await get(u) }));
+    // Missing pages, server errors and no answer are broken. A 401, 403 or 405 is an endpoint that
+    // exists but wants a key or another method, which is fine to list.
+    const broken = answers.filter(({ r }) => !r.status || r.status === 404 || r.status === 410 || r.status >= 500).map(({ u, r }) => `${u.replace(BASE, '') || '/'} (${r.status || 'no answer'})`);
+    const sizes = `llms.txt ${(llms.text.length / 1024).toFixed(1)} KB, llms-full.txt ${(llmsFull.text.length / 1024).toFixed(0)} KB`;
     if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
     else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
-    else pass(id, name, level, `llms.txt ${(llms.text.length / 1024).toFixed(1)} KB, llms-full.txt ${(llmsFull.text.length / 1024).toFixed(0)} KB`);
+    else if (broken.length) record(id, name, level, 'warn', `broken links in llms.txt: ${broken.slice(0, 3).join(', ')}${broken.length > 3 ? `, +${broken.length - 3} more` : ''} (${broken.length} of ${sample.length} sampled)${cached(llms)}`);
+    else pass(id, name, level, `${sizes}${sample.length ? `; ${sample.length} sampled link${sample.length === 1 ? '' : 's'} resolve` : ''}`);
   }
 
   // ---- D5 Link headers (recommended; a wrong service-desc is a false declaration) ----
@@ -673,7 +702,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
         };
         const alt = domain.startsWith('www.') ? `https://${domain.slice(4)}/` : `https://www.${domain}/`;
         const hostProblems = [];
-        for (const start of [`http://${domain}/`, alt]) {
+        for (const start of baseOrigin ? [] : [`http://${domain}/`, alt]) { // --base: the live hosts aren't what's being scored
           const h = await hostHops(start);
           if (!h) continue; // that host doesn't resolve or answer
           if (new URL(h.end).origin !== origin) hostProblems.push(`${start} never reaches ${origin} (ends at ${h.end})`);
@@ -685,7 +714,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
         if (elsewhere.length) problems.push(`sitemap URLs canonical to another URL: ${list(elsewhere)}`);
         problems.push(...hostProblems);
         if (problems.length) miss(id, name, level, problems.join('; '));
-        else pass(id, name, level, `self-referencing canonicals on ${ok200.length} sampled pages; http and the other host redirect once to ${origin}`);
+        else pass(id, name, level, `self-referencing canonicals on ${ok200.length} sampled pages; ${baseOrigin ? 'host redirects not checked with --base' : `http and the other host redirect once to ${origin}`}`);
       }
       // W3 only indexable pages in the sitemap; real 404s
       {
@@ -770,21 +799,25 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   // ---- D10 DNS AID (recommended; a record naming a service you don't run is false) ----
   {
     const id = 'D10', name = 'DNS AID record', level = 'recommended';
-    let recs = [];
-    try { recs = (await resolveTxt(`_agent.${domain}`)).map((r) => r.join('')).filter((r) => r.startsWith('v=aid')); } catch { recs = []; }
-    if (!recs.length) miss(id, name, level, `no TXT record at _agent.${domain}`);
-    else if (recs.length > 1) wrong(id, name, level, `${recs.length} records at _agent.${domain}; AID clients fail on ambiguity, so keep exactly one`);
+    const recent = ' (DNS answers stay cached until the record\'s TTL runs out, so a change can take a while to show)';
+    if (baseOrigin) skip(id, name, level, 'not checked with --base: DNS describes the live domain');
     else {
-      const kv = Object.fromEntries(recs[0].split(';').map((p) => p.split('=')).filter((p) => p.length >= 2).map(([k, ...v]) => [k.trim(), v.join('=').trim()]));
-      if (kv.v !== 'aid2') miss(id, name, level, `version ${kv.v} (current is aid2)`);
-      else if (!kv.u || !AID_PROTOCOLS.includes(kv.p)) wrong(id, name, level, `invalid record: u=${kv.u ?? 'missing'} p=${kv.p ?? 'missing'}`);
+      let recs = [];
+      try { recs = (await resolveTxtFresh(`_agent.${domain}`)).map((r) => r.join('')).filter((r) => r.startsWith('v=aid')); } catch { recs = []; }
+      if (!recs.length) miss(id, name, level, `no TXT record at _agent.${domain}${recent}`);
+      else if (recs.length > 1) wrong(id, name, level, `${recs.length} records at _agent.${domain}; AID clients fail on ambiguity, so keep exactly one${recent}`);
       else {
-        let why = '';
-        if (kv.p === 'a2a' && !a2aValid) why = 'p=a2a, but there is no valid A2A card';
-        else if (kv.p === 'mcp' && !(await answersMcp(kv.u)).hosted) why = `p=mcp, but ${kv.u} doesn't answer MCP`;
-        else if (kv.p === 'openapi' && !json(await get(kv.u))?.openapi) why = `p=openapi, but ${kv.u} isn't an OpenAPI document`;
-        if (why) wrong(id, name, level, why);
-        else pass(id, name, level, `p=${kv.p} u=${kv.u}`);
+        const kv = Object.fromEntries(recs[0].split(';').map((p) => p.split('=')).filter((p) => p.length >= 2).map(([k, ...v]) => [k.trim(), v.join('=').trim()]));
+        if (kv.v !== 'aid2') miss(id, name, level, `version ${kv.v} (current is aid2)`);
+        else if (!kv.u || !AID_PROTOCOLS.includes(kv.p)) wrong(id, name, level, `invalid record: u=${kv.u ?? 'missing'} p=${kv.p ?? 'missing'}`);
+        else {
+          let why = '';
+          if (kv.p === 'a2a' && !a2aValid) why = 'p=a2a, but there is no valid A2A card';
+          else if (kv.p === 'mcp' && !(await answersMcp(kv.u)).hosted) why = `p=mcp, but ${kv.u} doesn't answer MCP`;
+          else if (kv.p === 'openapi' && !json(await get(kv.u))?.openapi) why = `p=openapi, but ${kv.u} isn't an OpenAPI document`;
+          if (why) wrong(id, name, level, why);
+          else pass(id, name, level, `p=${kv.p} u=${kv.u}`);
+        }
       }
     }
   }
@@ -814,7 +847,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp' } = {}) {
   }
 
   results.sort((a, b) => LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level) || ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
-  return { domain, version: VERSION, checked_at: new Date().toISOString(), hosted_mcp: hosted, results };
+  return { domain, base: baseOrigin, version: VERSION, checked_at: new Date().toISOString(), hosted_mcp: hosted, results };
 }
 
 export function score(results, level) {
@@ -841,7 +874,7 @@ export function matrix(reports, command, recorded = {}) {
     `| | Next level passed | | ${reports.map((rep) => score(rep.results, 'next')).join(' | ')} |`,
     `| | Hosted MCP endpoint | | ${reports.map((rep) => (rep.hosted_mcp ? 'yes' : 'no')).join(' | ')} |`,
     ...[['T5', 'Agent usability test (recorded)'], ['T6', 'Search numbers (recorded)']].map(([id, label]) =>
-      `| ${id} | ${label} | required | ${reports.map((rep) => { const x = recorded[rep.domain]?.[id]; return x ? `${String(x.result ?? '').replace(/\|/g, '/')}${x.date ? ` (${x.date})` : ''}` : 'not recorded'; }).join(' | ')} |`),
+      `| ${id} | ${label} | required | ${reports.map((rep) => formatRecorded(recorded[rep.domain]?.[id])).join(' | ')} |`),
     '',
     '## What to fix, per site', '',
     'Failures and warnings with the scorecard\'s reason, required items first.', '',

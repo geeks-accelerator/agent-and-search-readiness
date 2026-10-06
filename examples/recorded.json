@@ -1,6 +1,11 @@
 {
   "example.com": {
     "T5": { "result": "4 of 5 first try", "date": "2026-10-12" },
-    "T6": { "result": "Google: 24 clicks, CTR 3.8% (3 months); Bing: 31 clicks", "date": "2026-10-01" }
+    "T6": {
+      "period": "last 3 months",
+      "google": { "clicks": 24, "impressions": 630, "ctr": 3.8, "position": 18.2, "indexed": 120, "not_indexed": 310, "crawled_not_indexed": 40 },
+      "bing": { "clicks": 31, "impressions": 900, "ctr": 3.4 },
+      "date": "2026-10-01"
+    }
   }
 }

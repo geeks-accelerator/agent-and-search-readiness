@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // readiness-audit: score a live site against the Agent and Search Readiness Standard.
 //
-//   readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous]
+//   readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous] [--base url]
 //   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]   (a markdown status page)
 //
 // Exits 1 when a required check fails, so it can gate a deploy.
@@ -20,15 +20,21 @@ const valueOf = (name) => (flag(name) ? args[args.indexOf(name) + 1] : undefined
 const mcpOpt = valueOf('--mcp');
 const recordedPath = valueOf('--recorded');
 const comparePath = valueOf('--compare');
-const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare'].includes(args[i - 1]))
+const base = valueOf('--base');
+const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare', '--base'].includes(args[i - 1]))
   .map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));
-const opts = { hasApi: !flag('--no-api'), mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp') };
+const opts = { hasApi: !flag('--no-api'), mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp'), base: base ?? null };
+if (base) {
+  let u;
+  try { u = new URL(base); } catch { u = null; }
+  if (!u || !['http:', 'https:'].includes(u.protocol)) { console.error(`--base needs an http(s) URL, like http://localhost:3000 (got ${base})`); process.exit(2); }
+}
 
 if (!domains.length || flag('--help') || flag('-h')) {
   console.error(`readiness-audit ${VERSION}
 
 Usage:
-  readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous]
+  readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous] [--base url]
   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
 
 Options:
@@ -39,19 +45,24 @@ Options:
   --matrix      score several sites and print a markdown status page
   --recorded f  with --matrix: add recorded T5 and T6 results from a JSON file
   --compare f   list what changed since a previous run: a status page from
-                --matrix (docs/readiness-status.md) or a saved --json report`);
+                --matrix (docs/readiness-status.md) or a saved --json report
+  --base url    score a local or preview build as the domain, before you
+                deploy (http://localhost:3000); DNS and host redirects are
+                skipped`);
   process.exit(domains.length ? 0 : 2);
 }
 
 if (flag('--matrix')) {
-  if (comparePath) console.error('--compare works with a single domain; ignoring it for --matrix.');
+  if (comparePath || base) console.error('--compare and --base work with a single domain; ignoring them for --matrix.');
+  opts.base = null;
   let recorded = {};
   if (recordedPath) {
     try { recorded = JSON.parse(readFileSync(recordedPath, 'utf8')); }
     catch (e) { console.error(`Couldn't read ${recordedPath}: ${e.message}`); process.exit(2); }
   }
   const reports = await Promise.all(domains.map((d) => audit(d, opts)));
-  console.log(matrix(reports, `npx readiness-audit --matrix ${domains.join(' ')}${recordedPath ? ` --recorded ${recordedPath}` : ''}`, recorded));
+  const pinned = `readiness-audit@${VERSION.split('.')[0]}`; // the major version, as STANDARD.md §14 says to pin it
+  console.log(matrix(reports, `npx ${pinned} --matrix ${domains.join(' ')}${recordedPath ? ` --recorded ${recordedPath}` : ''}`, recorded));
 } else {
   let previous = null;
   if (comparePath) {
@@ -67,7 +78,7 @@ if (flag('--matrix')) {
   if (flag('--json')) console.log(JSON.stringify(changes ? { ...rep, changes: { since: previous.date, ...changes } } : rep, null, 2));
   else {
     const label = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', skip: 'skip' };
-    console.log(`Agent and search readiness: ${rep.domain}  (readiness-audit v${VERSION}, ${rep.checked_at.slice(0, 16)}Z)`);
+    console.log(`Agent and search readiness: ${rep.domain}${rep.base ? ` via ${rep.base}` : ''}  (readiness-audit v${VERSION}, ${rep.checked_at.slice(0, 16)}Z)`);
     for (const level of LEVELS) {
       const rows = rep.results.filter((r) => r.level === level);
       if (!rows.length) continue;
