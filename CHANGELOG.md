@@ -28,6 +28,8 @@ From an adopting agent's review: a full score showed a site was set up correctly
 - D8: a page's markdown copy has the page's sections.
 - §11: guard tests for the sitemap against the routes ([recipe](docs/recipes.md#the-sitemap-equals-the-routes-t4-w3)), markdown copies against their pages, and retired URLs.
 - T3: classify traffic before counting it; a browser, headless or unidentified client counts as an agent only when something backs it up, such as calling the API.
+- W7: anchors say what the target is in searched-for words, not the brand name alone, with the brand in plain text beside them, and are true of the page they open. From animalhouse, where an agent linked sibling sites by brand name.
+- E6: link siblings in context with W7's anchors; never sitewide or on a partner page, which Google's spam policies call link schemes.
 - Considered and left out: in-page anchors, favicon versioning, prerendering and view transitions.
 - §16: Next.js metadata merging, Google on redirects and on publication dates.
 

@@ -23,7 +23,7 @@ const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5
 // Items the scorecard can't see from outside. Each project checks these in review and tests.
 export const REVIEW = [
   ['D3', 'pages read well: server-rendered, unique prose on generated pages (the scorecard checks W1 to W6 on a sample)'],
-  ['W7', 'internal links: entity names link to their pages, descriptive anchors, no orphan pages'],
+  ['W7', 'internal links: entity names link to their pages, anchors that say what the target is (not the brand alone), no orphan pages; sibling links in context, never sitewide (E6)'],
   ['W8', 'Core Web Vitals on the main pages (Lighthouse or PageSpeed Insights)'],
   ['W9', 'listed in the directories your audience uses'],
   ['D13', 'a page for agents\' builders with a copy-paste prompt'],

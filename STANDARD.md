@@ -353,7 +353,9 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 **W7 Internal links** (checked in review).
 - Every entity name links to its page, and detail pages end with related links ("More from {username}", botsmatter).
 - Recommendation lists draw from many pages, not the same few (inbed's pool of about 150 indexable agents).
-- Anchor text describes the target ("Catholic AI ethics compass", not "click here" or a bare domain), including links between sibling projects (achurch).
+- **Anchor text says what the target is, in the words people search for:** "Catholic AI ethics compass", not "click here", a bare domain or the brand name alone. Google's test is whether the anchor makes sense read by itself, and a brand name means nothing to someone who doesn't know the brand yet. Put the brand in plain text beside the anchor: `[Brand] has [what it is, in searched-for words]`. This holds for links between sibling projects too (achurch). At animalhouse in October 2026, an agent linking two sibling sites used their brand names until asked to use keywords.
+- **The anchor is true of the page it opens.** Link the most specific page that delivers what the words name (a file the anchor names, a tool the anchor describes), and don't name a feature the target doesn't have. The same agent's first keyword choice ("generate soul files") described a generator its target didn't have. *Harm prevented:* a reader who clicks and doesn't find what the link promised stops trusting your links.
+- Keep anchors concise and on one topic. Google counts packing every related keyword into a link as keyword stuffing, a spam policy violation.
 - Every sitemap URL is linked from at least one page.
 
 ### Recommended
@@ -617,6 +619,8 @@ The test is whether most of the six projects should do it. These came from one o
 ### E6 Point to the sibling projects
 
 *Recommended when you run related sites for the same audience.* List them in llms.txt and the `/for-agents` page; for some projects (achurch.ai) that's enough. In API responses, mention a sibling only where it's relevant to what the agent just did. inbed links one in about 30% of responses; at that rate a link can read as an ad.
+- **On pages, link a sibling in context,** where it answers what the reader is doing there, with W7's anchors: what the sibling is, in searched-for words, with the brand beside it in plain text.
+- **Not sitewide, and not as a partner page.** Don't put sibling links in a footer or template on every page, and don't build a page that exists to list them. *Harm prevented:* Google's spam policies name both, links in the footers or templates of various sites and partner pages made for cross-linking, as link schemes, and a network of sites linking each other that way can lose rankings for all of them.
 
 ---
 
@@ -827,7 +831,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | W4 | True structured data: Organization and WebSite, breadcrumbs, honest types, escaped | R | honesty | score |
 | W5 | Link previews: Open Graph, `twitter:card`, each page's own card text, declared images, versioned cards | R | discovery | score |
 | W6 | One h1, `html lang`, alt text, unique paragraph on generated pages | R | discovery | score |
-| W7 | Internal links with descriptive anchors, no orphan pages | R | discovery | review |
+| W7 | Internal links with descriptive, searched-for anchors true to the target, no orphan pages | R | discovery | review |
 | W8 | Core Web Vitals on the main pages | Rec | discovery | review |
 | W9 | Listed in the directories your audience uses | Rec | discovery | review |
 | W10 | IndexNow for content that changes | Rec | discovery | review |
@@ -944,6 +948,7 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Core Web Vitals | web.dev, Search Central | https://web.dev/articles/vitals · https://developers.google.com/search/docs/appearance/page-experience |
 | hreflang | Search Central | https://developers.google.com/search/docs/specialty/international/localized-versions |
 | Images and alt text | Search Central | https://developers.google.com/search/docs/appearance/google-images |
+| Link spam | Search Central spam policies, read 2026-10-21 | https://developers.google.com/search/docs/essentials/spam-policies |
 | Crawlable links | Search Central | https://developers.google.com/search/docs/crawling-indexing/links-crawlable |
 | Open Graph | ogp.me | https://ogp.me/ |
 | Share images (Meta, LinkedIn) | platform docs | https://developers.facebook.com/docs/sharing/webmasters/images · https://www.linkedin.com/help/linkedin/answer/a521928 |
