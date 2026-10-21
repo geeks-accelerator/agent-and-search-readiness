@@ -5,11 +5,13 @@
 From an adopting agent's review: a full score showed a site was set up correctly, not that agents did better on it, and the default run graded content sites on an API they don't have. This release makes the score fit the site, checks more of what agents and link previews actually read, and gives T5 and the traffic numbers a recorded form. Pin `readiness-audit@2`.
 
 **Checks that can newly fail** (why this is a major version):
-- **W1 to W6 also sample up to six shallow pages** (`/about`, `/privacy`), besides 20 pages spread across the sitemap. A spread across entity pages tends to miss them, and they're the pages most likely to inherit a layout's metadata. Any existing W rule can now fail on them.
+- **W1 to W6 sample by page type.** URLs are grouped by template (the first path segment plus the depth): every static page is read (groups of 20 or fewer), and three pages of each generated template, up to 40 pages. Each W line says what it read, and when the cap left static pages out. A sample spread evenly through the sitemap had read under one static page on sites that are mostly generated pages, and the static pages are where layouts leak metadata. Any existing W rule can now fail on them. At animalhouse this found 11 descriptions over 160 characters and 11 pages showing the homepage's X card that 1.2.1 had passed. W3's missing-item probe goes under each template, and W4's breadcrumbs are judged on template pages.
+- **D2 reads the pages' dates on a sitemap index.** It counted the sub-sitemaps' own `lastmod` dates. The sitemap is now read once, every sub-sitemap up to ten (the W checks read three), and D2 and the W checks share it.
 - **W5 fails when a page's share card shows another page's text.** It reads what each platform shows: on X, `twitter:title` and `twitter:description`, falling back to `og:`; on Facebook and LinkedIn, `og:`. Shared text counts against a page when it isn't the page's own (its `<title>` or meta description), and belongs to the homepage when it matches no page. Next.js merges metadata shallowly, so a page that sets `openGraph` but not `twitter` keeps the root layout's Twitter title and description. animalhouse found this by sharing links, after W5 had passed; inbed.ai has it too.
 - **The API checks run whenever a site has or declares an API,** and `--no-api` is gone. They run when `/openapi.json` or `/api` answers, or a `service-desc` link, an API catalog or llms.txt names an API; a declared API that doesn't answer fails A1. A site with neither skips them, as a site with no hosted MCP endpoint skips the MCP checks. Drop `--no-api` from your commands; an unknown flag is ignored.
 
 **New warnings:**
+- **W6** warns when heading levels skip going down (an `h1` followed by an `h3`).
 - **D4** reports llms.txt links that redirect: link the destination.
 - **D5 asks for `service-desc` and `api-catalog` only on a site with an API.** A site with none needs only `describedby`, since a `service-desc` naming an OpenAPI document would declare one.
 - **D8** compares one page llms.txt links with its markdown copy, when the page serves one, and warns about sections the copy lacks. The homepage's markdown may be llms.txt, so it isn't compared.
@@ -24,9 +26,11 @@ From an adopting agent's review: a full score showed a site was set up correctly
 - W3: retiring a page (a permanent redirect to what replaced it, out of every discovery file in the same change, a test that it keeps redirecting).
 - W4: a visible date matches the structured one (Google's publication-dates guidance).
 - W5: every page's card shows its own title and description; the homepage's copy belongs on the homepage, not the root layout. §12's `twitter:title` gotcha names the Next.js cause.
-- W6: the median HTML size, reported and not scored.
+- W6: heading levels don't skip (W3C's headings tutorial); the median HTML size, reported and not scored.
 - D8: a page's markdown copy has the page's sections.
-- §11: guard tests for the sitemap against the routes ([recipe](docs/recipes.md#the-sitemap-equals-the-routes-t4-w3)), markdown copies against their pages, and retired URLs.
+- §11: guard tests for the sitemap against the routes ([recipe](docs/recipes.md#the-sitemap-equals-the-routes-t4-w3)), markdown copies against their pages, retired URLs, and every page's own metadata; "No stale claims" covers page copy and skill files, and S1 points to it.
+- T6: record the top queries with their landing pages (`queries` in `recorded.json`), reviewed by hand, not scored.
+- §12: inline elements with no space between them fuse into one word.
 - T3: classify traffic before counting it; a browser, headless or unidentified client counts as an agent only when something backs it up, such as calling the API.
 - W7: anchors say what the target is in searched-for words, not the brand name alone, with the brand in plain text beside them, and are true of the page they open. From animalhouse, where an agent linked sibling sites by brand name.
 - E6: link siblings in context with W7's anchors; never sitewide or on a partner page, which Google's spam policies call link schemes.

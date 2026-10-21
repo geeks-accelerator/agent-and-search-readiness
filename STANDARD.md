@@ -337,13 +337,14 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - A rendered 1200×630 card for every entity (all six do this), drawn only for pages that exist: achurch's card 404s wherever its page would. The alt text repeats the card's words.
 - Version the card URL (`/og/v1/`). Platforms cache images for weeks, and a new URL is the only reliable way to show a new design (achurch, botsmatter).
 - Set `twitter:card` explicitly: X doesn't infer the card type, and without it a link may get the small card. Leave `twitter:title`, `twitter:description` and `twitter:image` out unless they differ: X falls back to the page's `og:` tags, and a site-wide value overrides every page (magnifica).
-- **Every page's card shows its own title and description:** on X, `twitter:title` (else `og:title`) and the same for the description; on Facebook and LinkedIn, `og:title` and `og:description`. Put the homepage's copy on the homepage, and keep only shared fields in the root layout: the image, `twitter:card`, the site name. A framework that merges metadata shallowly, as Next.js does, gives a page that sets `openGraph` but not `twitter` the layout's whole Twitter block, and a page that sets neither the layout's whole card. In October 2026, pages at animalhouse and inbed shared on X as their homepage this way. The scorecard fails W5 when a sampled page shows another page's text.
+- **Every page's card shows its own title and description:** on X, `twitter:title` (else `og:title`) and the same for the description; on Facebook and LinkedIn, `og:title` and `og:description`. Put the homepage's copy on the homepage, and keep only shared fields in the root layout: the image, `twitter:card`, the site name. A framework that merges metadata shallowly, as Next.js does, gives a page that sets `openGraph` but not `twitter` the layout's whole Twitter block, and a page that sets neither the layout's whole card. In October 2026, pages at animalhouse and inbed shared on X as their homepage this way. The scorecard fails W5 when a sampled page shows another page's text, and a metadata test sees every page (§11).
 - 1200×630 works for Meta, LinkedIn and X. X's large card needs a 2:1 image under 5 MB, and not SVG.
 - Don't customize Open Graph tags without the title and description too: search reads those (achurch).
 - **Done when** the scorecard passes W5.
 
 **W6 Page structure.** *Why: headings, language and alt text are how readers, screen readers and machines parse a page.*
 - One `h1` per page, with sections as `h2`.
+- Heading levels don't skip going down (an `h1` followed by an `h3`). Screen readers and parsers read the levels as the page's outline, and W3C's headings tutorial says to avoid skipping ranks. Going back up to close a section is fine. Google doesn't rank on heading order, so the scorecard warns rather than fails.
 - `html lang` on every page. Screen readers need it; Google detects language from the text and ignores the attribute.
 - Descriptive alt text on content images. Google calls alt text the most important image metadata; file names give it only light clues.
 - On generated entity pages, a unique narrative paragraph (botsmatter, animalhouse), and excerpts rather than full copies of text that has its own page, so the detail page ranks for its own words (botsmatter).
@@ -487,6 +488,7 @@ The test is whether most of the six projects should do it. These came from one o
 - **Trigger on the job, and say what lasting actions do.** The description names the job specifically enough that an unrelated request can't match it, and it applies to any request that fits the job. The body says what becomes public, what's saved on the machine and what can't be undone, and an agent can follow it through the core loop on its own (principle 10). Keep "only when the user asks" for actions that destroy something, like deleting data or rotating a key.
   - **Check it:** could a request that has nothing to do with your product match the description? Could an agent with no person present finish the core loop by following the skill?
   - **What ClawHub's scan did:** it rated drifts' first plugin suspicious for broad triggers: general activities that unrelated requests also match. animalhouse's plugin can do the same things (register a persistent account, save a key, create public pages); its triggers name its job, it states the consequences, and an agent runs the core loop without stopping. It scanned clean. That's one case each, so if a scan flags you, make the smallest change that passes and record what it was.
+- **State facts the code can keep true.** A count or a timing in a skill ("hatches in five minutes") comes from the code or data it describes, or isn't stated: agents act on it. §11's "No stale claims" test covers skill files.
 - **Link the map.** Every skill links llms.txt and the API or MCP reference (`/docs/api.md`, `/openapi.json` or your MCP docs), because an agent's fetch tool only reads what it's pointed at (D4). The scorecard checks this on a sample of skills from your index. At animalhouse, the core skill and both plugin skills linked neither.
 - **Serve the raw file** at a stable URL so an agent can install it with one fetch (`/.well-known/agent-skills/<name>/SKILL.md` keeps the folder name in the URL), plus a `/skills` page. Index them in S2, with each digest computed from the bytes you serve.
 - **Index the skills the site serves, not every listing.** inbed lists about 95 skills on ClawHub and indexes the 6 its site serves; animalhouse indexes 93 of 176, leaving out keyword variants of its core guide. Publishing an index makes S1 apply, so the required count goes up by one. Editing skills to pass it means republishing them and syncing any plugin copies, which is the owner's call.
@@ -691,6 +693,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - Verify the site in Google Search Console and Bing Webmaster Tools, and submit the sitemap to both.
   - Review them monthly: coverage (including "crawled, not indexed"), queries, clicks and click-through rate. Re-check about two weeks after an SEO change (inbed).
   - Record the numbers next to the score as fields, not prose, so months compare: the period, clicks, impressions, click-through rate, average position, pages indexed and not indexed, and "crawled, not indexed", for Google and Bing (format: [examples/recorded.json](examples/recorded.json)). They're the outcome the W items are for.
+  - Record the top queries with the page each lands on (`queries`), and ask in the review whether each page answers its query in its title, `h1` and opening text. animalhouse's homepage ranked for "tamagotchi ai" without those words on the page. It isn't scored: the data is entered by hand, and matching query words against a title invites keyword stuffing.
   - It takes a person, or a browser session, with access to Search Console and Bing Webmaster Tools. There's no unattended way to read them.
   - In analytics, watch referrals from AI answer engines (chatgpt.com, perplexity.ai, copilot.microsoft.com, gemini.google.com, claude.ai).
   - Search Console gained a setting on 2026-08-31 that keeps a site out of Google's AI features. It's on by default, so leave it alone unless you mean to opt out.
@@ -706,7 +709,8 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - **Contract** (once you have response schemas, N7): the OpenAPI spec is validated against real responses (achurch.ai).
 - **Parity:** each MCP tool returns what its REST twin returns, in both protocol eras (achurch.ai). The tool list matches the OpenAPI operations (animalhouse's `npm run smoke`).
 - **Versions agree:** `package.json`, `server.json`, the server card and the plugin pin (magnifica, achurch.ai).
-- **No stale claims:** discovery files don't advertise parameters the API rejects, retired numbers, or features you don't run (magnifica's `well-known-surfaces.test.ts`).
+- **No stale claims:** discovery files, page copy and skill files don't advertise parameters the API rejects, retired numbers, or features you don't run (magnifica's `well-known-surfaces.test.ts`). A count or a timing ("167 skills", "hatches in five minutes") comes from the code or data it describes, or isn't stated. *Harm prevented:* copy that contradicts the product, which agents act on (animalhouse's skills kept a timing the game had changed).
+- **Every page's own metadata:** walk every route and check each has its own title, description and share card, with descriptions within W1's lengths. It's the only check that sees every page, and it catches copy a page inherits from a layout before it ships (animalhouse's `metadata.test.ts`).
 - **Schemas:** each card and index validates against its published schema (the skills index, the server card, the AI catalog).
 - **Generated files are current:** a `--check` mode for generated manifests and tool tables, run in CI (animalhouse, drifts, inbed).
 - **Skills only call tools that exist** (achurch.ai, drifts).
@@ -748,6 +752,7 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 - **A second `_agent` TXT record** makes AID clients fail on ambiguity.
 - **A catalog entry's type is a claim.** Typing `mcp.json` as a server card is a false declaration even when `mcp.json` itself is honest.
 - **A client-side `document.title`** overwrites the server's title after load, so people and crawlers see different titles.
+- **Inline elements with no space between them fuse into one word** for crawlers and screen readers: a link made of "Drifts Bot" and "Travel" in two spans reads "Drifts BotTravel". Check the rendered text, not the markup.
 - **A site-wide `twitter:title`** overrides every page's own `og:title` on X. Next.js adds one unasked: metadata merges shallowly, so a page that sets `openGraph` but not `twitter` keeps the layout's `twitter` title and description.
 - **Two items with the same name can share one URL.** animalhouse's creature page 404'd when an agent reused a name, while the sitemap still listed the URL; the lookup now picks the item the URL means (a living one first, then one with a gravestone). W3's sitemap sample catches it.
 - **`og:locale` and JSON-LD `inLanguage` use different formats:** `en_US` and `en-US`, `zh_CN` and `zh-Hans`.
@@ -936,6 +941,7 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Google's AI optimization guide | Search Central, May 2026 | https://developers.google.com/search/docs/fundamentals/ai-optimization-guide |
 | Title links and snippets | Search Central | https://developers.google.com/search/docs/appearance/title-link · https://developers.google.com/search/docs/appearance/snippet |
 | Redirects | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/crawling-indexing/301-redirects |
+| Headings | W3C WAI tutorial, read 2026-10-21 | https://www.w3.org/WAI/tutorials/page-structure/headings/ |
 | Publication dates | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/appearance/publication-dates |
 | Canonicalization | Search Central | https://developers.google.com/search/docs/crawling-indexing/canonicalization |
 | Pagination and faceted navigation | Search Central | https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading · https://developers.google.com/crawling/docs/faceted-navigation |

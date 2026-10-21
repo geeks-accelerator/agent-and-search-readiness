@@ -5,6 +5,7 @@
       "period": "last 3 months",
       "google": { "clicks": 24, "impressions": 630, "ctr": 3.8, "position": 18.2, "indexed": 120, "not_indexed": 310, "crawled_not_indexed": 40 },
       "bing": { "clicks": 31, "impressions": 900, "ctr": 3.4 },
+      "queries": [{ "query": "[a query people search]", "page": "/", "clicks": 9, "impressions": 210 }],
       "date": "2026-10-01"
     }
   }

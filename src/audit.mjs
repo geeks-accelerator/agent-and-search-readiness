@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, shallowPages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
 export const VERSION = '2.0.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -234,7 +234,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     const star = groups.find((g) => g.agents.includes('*'));
     const leaks = star ? groups.filter((g) => g !== star).flatMap((g) => [...star.disallow].filter((d) => !g.disallow.has(d)).map((d) => `${g.agents[0]} skips Disallow ${d}`)) : [];
     if (!ok(robots)) miss(id, name, level, `/robots.txt answered ${robots.status}${cached(robots)}`);
-    else if (leaks.length) miss(id, name, level, `named groups drop rules from the * group (a crawler obeys only its own group): ${[...new Set(leaks)].slice(0, 3).join('; ')}${cached(robots)}`);
+    else if (leaks.length) miss(id, name, level, `named groups drop rules from the * group (a crawler obeys only its own group): ${list([...new Set(leaks)], '; ')}${cached(robots)}`);
     else if (!sitemapLine) miss(id, name, level, `no Sitemap line${cached(robots)}`);
     else pass(id, name, level, `${groups.length} group${groups.length === 1 ? '' : 's'} with consistent rules, Sitemap listed`);
   }
@@ -243,18 +243,31 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     const named = AI_BOTS.filter((b) => groups.some((g) => g.agents.includes(b)));
     const unsignaled = groups.filter((g) => !g.signal);
     const problems = [];
-    if (unsignaled.length) problems.push(`${unsignaled.length} of ${groups.length} group${groups.length === 1 ? '' : 's'} ${unsignaled.length === 1 ? 'has' : 'have'} no Content-Signal (${unsignaled.slice(0, 3).map((g) => g.agents[0]).join(', ')}${unsignaled.length > 3 ? ', ...' : ''})`);
+    if (unsignaled.length) problems.push(`${unsignaled.length} of ${groups.length} group${groups.length === 1 ? '' : 's'} ${unsignaled.length === 1 ? 'has' : 'have'} no Content-Signal (${list(unsignaled.map((g) => g.agents[0]))})`);
     if (named.length < 3) problems.push(`names ${named.length} of the main AI crawlers`);
     if (!ok(robots)) miss(id, name, level, 'no robots.txt');
     else if (problems.length) miss(id, name, level, problems.join('; ') + cached(robots));
     else pass(id, name, level, `${named.length} AI crawlers named, Content-Signal in every group`);
   }
 
+  // ---- The sitemap, read once for D2 and the W checks: an index is expanded to its pages ----
+  const sitemapIndex = /<sitemapindex/.test(sitemap.text);
+  const sitemapLists = sitemapIndex
+    ? await mapLimit(sitemapEntries(sitemap.text).slice(0, 10), 4, async (e) => sitemapEntries((await get(e.loc)).text))
+    : [sitemapEntries(sitemap.text)];
+  const seenLocs = new Set();
+  const entries = sitemapLists.flat().filter((e) => {
+    try { if (!siteHosts.has(new URL(e.loc).hostname) || seenLocs.has(e.loc)) return false; } catch { return false; }
+    seenLocs.add(e.loc);
+    return true;
+  });
+
   // ---- D2 sitemap ----
   {
     const id = 'D2', name = 'sitemap.xml', level = 'required';
-    const lastmods = [...sitemap.text.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1].slice(0, 10));
+    const lastmods = entries.map((e) => e.lastmod?.slice(0, 10)).filter(Boolean);
     if (!ok(sitemap) || !/<urlset|<sitemapindex/.test(sitemap.text)) miss(id, name, level, `/sitemap.xml answered ${sitemap.status}${cached(sitemap)}`);
+    else if (!entries.length) miss(id, name, level, `${sitemapIndex ? 'the sitemap index\'s sitemaps list' : 'the sitemap lists'} no URLs on this site${cached(sitemap)}`);
     else if (!lastmods.length) miss(id, name, level, `no lastmod dates${cached(sitemap)}`);
     else if (new Set(lastmods).size === 1 && lastmods.length > 5) miss(id, name, level, `all ${lastmods.length} lastmod dates are ${lastmods[0]}; use each page's real change date${cached(sitemap)}`);
     else pass(id, name, level, `${lastmods.length} URLs with ${new Set(lastmods).size} distinct lastmod dates`);
@@ -273,11 +286,10 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     // exists but wants a key or another method, which is fine to list.
     const broken = answers.filter(({ r }) => !r.status || r.status === 404 || r.status === 410 || r.status >= 500).map(({ u, r }) => `${u.replace(BASE, '') || '/'} (${r.status || 'no answer'})`);
     // A retired page redirects; the files that list it should name where it went.
-    const bare = (u) => u.replace(/[?#].*$/, '').replace(/\/+$/, '');
-    const redirected = answers.filter(({ u, r }) => r.status >= 200 && r.status < 300 && bare(r.url) !== bare(u)).map(({ u, r }) => `${u.replace(BASE, '') || '/'} → ${r.url.replace(BASE, '') || '/'}`);
+    const redirected = answers.filter(({ u, r }) => r.status >= 200 && r.status < 300 && norm(r.url) !== norm(u)).map(({ u, r }) => `${u.replace(BASE, '') || '/'} → ${r.url.replace(BASE, '') || '/'}`);
     const linkProblems = [];
-    if (broken.length) linkProblems.push(`broken links in llms.txt: ${broken.slice(0, 3).join(', ')}${broken.length > 3 ? `, +${broken.length - 3} more` : ''} (${broken.length} of ${sample.length} sampled)`);
-    if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${redirected.slice(0, 3).join(', ')}${redirected.length > 3 ? `, +${redirected.length - 3} more` : ''}`);
+    if (broken.length) linkProblems.push(`broken links in llms.txt: ${list(broken)} (${broken.length} of ${sample.length} sampled)`);
+    if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${list(redirected)}`);
     const sizes = `llms.txt ${(llms.text.length / 1024).toFixed(1)} KB, llms-full.txt ${(llmsFull.text.length / 1024).toFixed(0)} KB`;
     if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
     else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
@@ -333,7 +345,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     }
     if (!/text\/markdown/.test(homeMd.type)) miss(id, name, level, `Accept: text/markdown on / returns ${ct(homeMd)}`);
     else if (!varyAccept(homeMd) || !varyAccept(home)) miss(id, name, level, `Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
-    else if (copy.gone.length) miss(id, name, level, `the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${copy.gone.slice(0, 3).map((h) => `"${h}"`).join(', ')}${copy.gone.length > 3 ? `, +${copy.gone.length - 3} more` : ''}`);
+    else if (copy.gone.length) miss(id, name, level, `the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${list(copy.gone.map((h) => `"${h}"`))}`);
     else if (!tokens) miss(id, name, level, 'markdown and Vary are right; add x-markdown-tokens');
     else pass(id, name, level, `markdown with Vary: Accept on both, x-markdown-tokens ${tokens}${copy.path ? `; ${copy.path}'s markdown copy has every section` : ''}`);
   }
@@ -423,8 +435,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         const respGaps = new Set(ops.flatMap(({ o }) => Object.values(o.responses ?? {}).flatMap((r) => Object.values(deref(r)?.content ?? {}).flatMap((c) => undescribedProps(c.schema)))));
         const respNote = respGaps.size ? `; ${respGaps.size} response field${respGaps.size === 1 ? ' has' : 's have'} no description (see N7)` : '';
         if (!String(spec.openapi).startsWith('3.1')) miss(id, name, level, `OpenAPI ${spec.openapi} (use 3.1)`);
-        else if (noDesc.length) miss(id, name, level, `${noDesc.length} of ${ops.length} operations ${noDesc.length === 1 ? 'has' : 'have'} no description (${noDesc.slice(0, 3).map((x) => x.key).join(', ')}${noDesc.length > 3 ? ', ...' : ''})${repeatNote}${respNote}`);
-        else if (fieldGaps.length) miss(id, name, level, `${fieldGaps.length} request field${fieldGaps.length === 1 ? ' has' : 's have'} no description (${fieldGaps.slice(0, 3).join(', ')}${fieldGaps.length > 3 ? ', ...' : ''})${variantNote}${repeatNote}${respNote}`);
+        else if (noDesc.length) miss(id, name, level, `${noDesc.length} of ${ops.length} operations ${noDesc.length === 1 ? 'has' : 'have'} no description (${list(noDesc.map((x) => x.key))})${repeatNote}${respNote}`);
+        else if (fieldGaps.length) miss(id, name, level, `${fieldGaps.length} request field${fieldGaps.length === 1 ? ' has' : 's have'} no description (${list(fieldGaps)})${variantNote}${repeatNote}${respNote}`);
         else pass(id, name, level, `OpenAPI ${spec.openapi}; all ${ops.length} operations and their request fields described${repeatNote}${respNote}`);
       }
     }
@@ -505,7 +517,6 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
       const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map((f) => f.label);
       const noApi = read.filter((f) => !API_LINK.test(f.text) && !MCP_LINK.test(f.text)).map((f) => f.label);
       const long = read.filter((f) => f.lines > 500).map((f) => `${f.label} (${f.lines} lines)`);
-      const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
       const problems = [], warns = [];
       if (unreachable.length) problems.push(`skill files that don't load: ${list(unreachable)}`);
       if (badName.length) problems.push(`names that break the spec (a lowercase slug, matching its folder and its index entry): ${list(badName)}`);
@@ -624,24 +635,15 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
   // ---- W: search, on a sample of sitemap pages ----
   let htmlKb = null; // median HTML size of the sampled pages, reported, not scored
   {
-    const locs = (xml) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1].replace(/&amp;/g, '&'));
-    let urls = locs(sitemap.text);
-    if (/<sitemapindex/.test(sitemap.text)) {
-      const subs = urls.slice(0, 3);
-      urls = [];
-      for (const sub of subs) urls.push(...locs((await get(sub)).text));
-    }
-    urls = [...new Set(urls)].filter((u) => { try { return siteHosts.has(new URL(u).hostname); } catch { return false; } });
-    const norm = (u) => { try { const x = new URL(u); return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '') || '/'}${x.search}`; } catch { return u; } };
-    // 20 pages spread across the sitemap, plus up to six shallow ones (/about, /privacy) the spread missed.
-    const spreadPick = spread(urls, 20);
-    const spreadSeen = new Set(spreadPick.map(norm));
-    const pick = [...spreadPick, ...shallowPages(urls.filter((u) => !spreadSeen.has(norm(u))), 6)];
-    const decode = (t) => t.replace(/&amp;/g, '&').replace(/&#39;|&#x27;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+    const urls = entries.map((e) => e.loc);
+    const sample = samplePages(urls);
+    const pick = sample.pages;
+    const templatePages = new Set(sample.templates.flatMap((t) => t.urls).map(norm));
+    const sampled = `${pick.length} sampled pages (${sample.static} static, ${sample.templates.length ? `${sample.templates.length} template${sample.templates.length === 1 ? '' : 's'}` : 'no templates'}${sample.skipped ? `; ${sample.skipped} static pages over the cap not read` : ''})`;
     const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)].map((m) => [m[1].toLowerCase(), m[3] ?? m[4]]));
     const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
     const meta = (html, key, val) => tags(html, 'meta').find((a) => (a[key] ?? '').toLowerCase() === val)?.content;
-    const text = (v) => (v === undefined ? undefined : decode(v));
+    const text = (v) => (v === undefined ? undefined : decodeText(v));
     const tw = (html, field) => text(meta(html, 'name', `twitter:${field}`) ?? meta(html, 'property', `twitter:${field}`));
     const jsonLd = (html) => {
       const ld = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
@@ -655,14 +657,14 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
       const { ld, types } = jsonLd(h);
       return {
         url: u, status: r.status, finalUrl: r.url, html: /text\/html/.test(r.type), bytes: Buffer.byteLength(h),
-        title: decode(h.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''),
-        description: decode(meta(h, 'name', 'description') ?? ''),
+        title: decodeText(h.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''),
+        description: decodeText(meta(h, 'name', 'description') ?? ''),
         robots: (meta(h, 'name', 'robots') ?? '').toLowerCase(),
         canonicals: tags(h, 'link').filter((a) => (a.rel ?? '').toLowerCase() === 'canonical').map((a) => a.href),
         og: { title: text(meta(h, 'property', 'og:title')), description: text(meta(h, 'property', 'og:description')), image: meta(h, 'property', 'og:image'), width: meta(h, 'property', 'og:image:width'), alt: meta(h, 'property', 'og:image:alt') },
         twitterCard: meta(h, 'name', 'twitter:card'),
         twitter: { title: tw(h, 'title'), description: tw(h, 'description') },
-        h1: (h.match(/<h1[\s>]/gi) ?? []).length,
+        headings: headings(h),
         lang: /<html[^>]*\slang=["']?[\w-]+/i.test(h),
         imgNoAlt: tags(h, 'img').filter((a) => a.alt === undefined).length,
         ldBroken: ld.filter((x) => x === null).length, types,
@@ -672,7 +674,6 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     const ok200 = pages.filter((p) => p.status === 200 && p.html);
     if (ok200.length) { const sizes = ok200.map((p) => p.bytes).sort((a, b) => a - b); htmlKb = Math.round(sizes[Math.floor(sizes.length / 2)] / 1024); }
     const short = (u) => u.replace(BASE, '') || '/';
-    const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
     if (!pick.length) {
       for (const [id, name] of [['W1', 'Titles and descriptions'], ['W2', 'Canonical URLs'], ['W3', 'Indexable pages only'], ['W4', 'Structured data'], ['W5', 'Link previews'], ['W6', 'Page structure']]) miss(id, name, 'required', 'no URLs in the sitemap to sample');
     } else {
@@ -695,7 +696,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         if (badDescs.length) lengths.push(`descriptions outside 50 to 160 characters: ${list(badDescs)}`);
         if (problems.length) miss(id, name, level, problems.concat(lengths).join('; '));
         else if (lengths.length) record(id, name, level, 'warn', lengths.join('; '));
-        else pass(id, name, level, `${ok200.length} sampled pages, all with their own title and description`);
+        else pass(id, name, level, `${sampled}, all with their own title and description`);
       }
       // W2 canonical URLs and one canonical host
       {
@@ -732,7 +733,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         if (elsewhere.length) problems.push(`sitemap URLs canonical to another URL: ${list(elsewhere)}`);
         problems.push(...hostProblems);
         if (problems.length) miss(id, name, level, problems.join('; '));
-        else pass(id, name, level, `self-referencing canonicals on ${ok200.length} sampled pages; ${baseOrigin ? 'host redirects not checked with --base' : `http and the other host redirect once to ${origin}`}`);
+        else pass(id, name, level, `self-referencing canonicals on ${sampled}; ${baseOrigin ? 'host redirects not checked with --base' : `http and the other host redirect once to ${origin}`}`);
       }
       // W3 only indexable pages in the sitemap; real 404s
       {
@@ -740,8 +741,10 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         const broken = pages.filter((p) => p.status !== 200).map((p) => `${short(p.url)} (${p.status})`);
         const moved = pages.filter((p) => p.status === 200 && norm(p.finalUrl) !== norm(p.url)).map((p) => `${short(p.url)} → ${short(p.finalUrl)}`);
         const noindex = ok200.filter((p) => /noindex/.test(p.robots)).map((p) => short(p.url));
-        const deep = ok200.map((p) => new URL(p.url).pathname).find((path) => path.split('/').filter(Boolean).length >= 2);
-        const probes = [`/no-such-page-${rand}`, ...(deep ? [deep.replace(/\/[^/]+\/?$/, `/no-such-item-${rand}`)] : [])];
+        // A missing item under each template: a detail route is where a loading boundary or a fallback answers 200.
+        // Templates first, then any deeper sampled page, so a small site's /blog/[post] gets a probe too.
+        const parents = [...sample.templates.map((t) => t.urls[0]), ...pick].map((u) => new URL(u).pathname).filter((path) => pathDepth(path) >= 2).map((path) => path.replace(/\/[^/]+\/?$/, ''));
+        const probes = [`/no-such-page-${rand}`, ...[...new Set(parents)].slice(0, 3).map((parent) => `${parent}/no-such-item-${rand}`)];
         const soft = [];
         for (const path of probes) {
           const r = await get(path, { headers: { accept: 'text/html' } });
@@ -753,7 +756,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         if (noindex.length) problems.push(`sitemap URLs marked noindex: ${list(noindex)}`);
         if (soft.length) problems.push(`missing pages answer 200 instead of 404: ${list(soft)}`);
         if (problems.length) miss(id, name, level, problems.join('; '));
-        else pass(id, name, level, `${pages.length} sampled sitemap URLs answer 200 with no redirect or noindex; missing pages get a 404`);
+        else pass(id, name, level, `${sampled} answer 200 with no redirect or noindex; missing pages get a 404`);
       }
       // W4 structured data
       {
@@ -761,7 +764,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         const homeTypes = home.status === 200 ? jsonLd(home.text).types : null;
         const broken = ok200.filter((p) => p.ldBroken).map((p) => short(p.url));
         const none = ok200.filter((p) => !p.types.length).map((p) => short(p.url));
-        const deepPages = ok200.filter((p) => new URL(p.url).pathname.split('/').filter(Boolean).length >= 2);
+        const deepPages = ok200.filter((p) => templatePages.has(norm(p.url)) && pathDepth(p.url) >= 2);
         const noCrumbs = deepPages.filter((p) => !p.types.includes('BreadcrumbList')).map((p) => short(p.url));
         const all = new Set(ok200.flatMap((p) => p.types));
         const notes = [];
@@ -772,7 +775,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         if (homeTypes && !homeTypes.some((t) => ['Organization', 'WebSite'].includes(t))) problems.push('no Organization or WebSite on the homepage');
         if (none.length) problems.push(`no JSON-LD on ${list(none)}`);
         if (problems.length) miss(id, name, level, problems.concat(notes).join('; '));
-        else if (noCrumbs.length > deepPages.length / 2) record(id, name, level, 'warn', [`no BreadcrumbList on ${noCrumbs.length} of ${deepPages.length} deeper pages`, ...notes].join('; '));
+        else if (noCrumbs.length > deepPages.length / 2) record(id, name, level, 'warn', [`no BreadcrumbList on ${noCrumbs.length} of ${deepPages.length} sampled template pages`, ...notes].join('; '));
         else pass(id, name, level, [`types: ${[...all].slice(0, 8).join(', ')}`, ...notes].join('; '));
       }
       // W5 link previews
@@ -801,24 +804,27 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         const warns = undeclared.length ? [`og:image size or alt text not declared on ${list(undeclared)}`] : [];
         if (problems.length) miss(id, name, level, problems.concat(warns).join('; '));
         else if (warns.length) record(id, name, level, 'warn', warns.join('; '));
-        else pass(id, name, level, `Open Graph and twitter:card on ${ok200.length} sampled pages; share images load`);
+        else pass(id, name, level, `Open Graph and twitter:card on ${sampled}; share images load`);
       }
       // W6 page structure
       {
         const id = 'W6', name = 'Page structure', level = 'required';
-        const noH1 = ok200.filter((p) => p.h1 === 0).map((p) => short(p.url));
-        const manyH1 = ok200.filter((p) => p.h1 > 1).map((p) => `${short(p.url)} (${p.h1})`);
+        const h1s = (p) => p.headings.filter((x) => x.level === 1).length;
+        const noH1 = ok200.filter((p) => h1s(p) === 0).map((p) => short(p.url));
+        const manyH1 = ok200.filter((p) => h1s(p) > 1).map((p) => `${short(p.url)} (${h1s(p)})`);
         const noLang = ok200.filter((p) => !p.lang).map((p) => short(p.url));
         const noAlt = ok200.filter((p) => p.imgNoAlt).map((p) => `${short(p.url)} (${p.imgNoAlt})`);
+        const skipped = ok200.map((p) => [p, headingSkips(p.headings)]).filter(([, sk]) => sk.length).map(([p, sk]) => `${short(p.url)} (${sk[0]})`);
         const problems = [], warns = [];
         if (noH1.length) problems.push(`no h1 on ${list(noH1)}`);
         if (noLang.length) problems.push(`no html lang on ${list(noLang)}`);
         if (manyH1.length) warns.push(`several h1s on ${list(manyH1)}`);
         if (noAlt.length) warns.push(`images without alt on ${list(noAlt)}`);
+        if (skipped.length) warns.push(`heading levels skipped on ${list(skipped)}`);
         const weight = `median HTML ${htmlKb} KB`;
         if (problems.length) miss(id, name, level, problems.concat(warns, weight).join('; '));
         else if (warns.length) record(id, name, level, 'warn', warns.concat(weight).join('; '));
-        else pass(id, name, level, `one h1, html lang and alt text on ${ok200.length} sampled pages; ${weight}`);
+        else pass(id, name, level, `one h1, heading levels in order, html lang and alt text on ${sampled}; ${weight}`);
       }
     }
   }

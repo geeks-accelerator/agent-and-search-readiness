@@ -43,7 +43,7 @@ Put the result in a JSON file next to your status page, and pass it to the matri
 npx readiness-audit@2 --matrix example.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
-The file's format is in `examples/recorded.json`. T5 is fields, so months compare: `attempts`, `first_try`, `model` (the full ID), `max_turns`, `median_calls`, `stops`, `cost_usd` and `date`. The runner fills in what the transcripts show; `median_calls` and `stops` come from reading the reports, and `first_try` is the agent's own claim until you've checked it. T6 (search numbers from Search Console and Bing Webmaster Tools) goes in the same file, as fields (clicks, impressions, CTR, position, indexed and not indexed, for Google and Bing) so months compare. Reading those numbers takes a person, or a browser session, with access to both consoles.
+The file's format is in `examples/recorded.json`. T5 is fields, so months compare: `attempts`, `first_try`, `model` (the full ID), `max_turns`, `median_calls`, `stops`, `cost_usd` and `date`. The runner fills in what the transcripts show; `median_calls` and `stops` come from reading the reports, and `first_try` is the agent's own claim until you've checked it. T6 (search numbers from Search Console and Bing Webmaster Tools) goes in the same file, as fields (clicks, impressions, CTR, position, indexed and not indexed, for Google and Bing, and the top queries with their landing pages) so months compare. Reading those numbers takes a person, or a browser session, with access to both consoles.
 
 ## Rules
 

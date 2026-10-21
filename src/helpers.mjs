@@ -20,6 +20,62 @@ export function spread(list, n) {
   return list.length <= n ? list : Array.from({ length: n }, (_, i) => list[Math.floor((i * list.length) / n)]);
 }
 
+/** Up to three items, then how many more: "a, b, c, +4 more". */
+export function list(xs, sep = ', ') {
+  return `${xs.slice(0, 3).join(sep)}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
+}
+
+/** A URL for comparison: lowercase host, no trailing slash, no fragment. The query stays. */
+export function norm(u) {
+  try { const x = new URL(u); return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '') || '/'}${x.search}`; } catch { return u; }
+}
+
+/** A URL's or a path's path segments: / is [], /docs/mcp is ['docs', 'mcp']. */
+export function pathSegments(u) {
+  try { return new URL(u, 'https://x.invalid').pathname.split('/').filter(Boolean); } catch { return []; }
+}
+
+/** How many segments a URL's or a path's path has: / is 0, /about is 1, /docs/mcp is 2. */
+export const pathDepth = (u) => pathSegments(u).length;
+
+/** HTML text as plain text: entities decoded, whitespace collapsed. */
+export function decodeText(t) {
+  const named = { quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ' };
+  return String(t ?? '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&(quot|apos|lt|gt|nbsp);/g, (_, k) => named[k])
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A page's headings in order, as { level, text }. Navigation, footers, asides and
+ * screen-reader-only headings aren't part of the page's structure, so they're left out.
+ * A <header> stays: pages often put their title h1 inside <article><header>.
+ */
+export function headings(html) {
+  const body = String(html ?? '')
+    .replace(/<(nav|footer|aside)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<h([1-6])\b[^>]*class="[^"]*\b(visually-hidden|sr-only)\b[^"]*"[^>]*>[\s\S]*?<\/h\1>/gi, '');
+  return [...body.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].map((m) => ({ level: Number(m[1]), text: decodeText(m[2].replace(/<[^>]+>/g, ' ')) }));
+}
+
+/** Where headings skip a level going down (h1 then h3), as "h1 to h3". Going back up is fine. */
+export function headingSkips(hs) {
+  const skips = [];
+  for (let i = 1; i < hs.length; i++) if (hs[i].level > hs[i - 1].level + 1) skips.push(`h${hs[i - 1].level} to h${hs[i].level}`);
+  return skips;
+}
+
+/** A sitemap's entries, urlset or index, as { loc, lastmod } (lastmod undefined when absent). */
+export function sitemapEntries(xml) {
+  return [...String(xml ?? '').matchAll(/<(url|sitemap)>([\s\S]*?)<\/\1>/g)].map((m) => ({
+    loc: m[2].match(/<loc>\s*([^<\s]+)\s*<\/loc>/)?.[1]?.replace(/&amp;/g, '&'),
+    lastmod: m[2].match(/<lastmod>\s*([^<\s]+)\s*<\/lastmod>/)?.[1],
+  })).filter((e) => e.loc);
+}
+
 /**
  * The discovery files the audit reads, by name. --logs counts requests for the same paths,
  * so what the scorecard checks and what the logs measure can't drift apart.
@@ -51,17 +107,14 @@ export const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 
 
 /**
  * Section headings (h1 to h3) the HTML page has and its markdown copy lacks, compared as
- * lowercase words so formatting doesn't count. Headings in nav, header, footer and aside,
- * and screen-reader-only ones, are left out. An empty list when they agree.
+ * lowercase words so formatting doesn't count. Page chrome is left out, as in headings().
+ * An empty list when they agree.
  */
 export function missingSections(html, markdown) {
-  const text = (t) => t.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&#x27;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
-  const words = (t) => text(t).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  // Navigation, page chrome and screen-reader-only headings aren't sections of the page.
-  const body = String(html ?? '').replace(/<(nav|header|footer|aside)\b[\s\S]*?<\/\1>/gi, '').replace(/<h[1-3]\b[^>]*class="[^"]*\b(visually-hidden|sr-only)\b[^"]*"[^>]*>[\s\S]*?<\/h[1-3]>/gi, '');
-  const htmlHeads = [...body.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)].map((m) => [text(m[1]), words(m[1])]).filter(([, w]) => w);
+  const words = (t) => decodeText(t).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const htmlHeads = headings(html).filter((h) => h.level <= 3 && words(h.text));
   const mdHeads = new Set([...String(markdown ?? '').matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)].map((m) => words(m[1].replace(/[*_`[\]]|\]\([^)]*\)/g, ' '))));
-  return [...new Set(htmlHeads.filter(([, w]) => !mdHeads.has(w)).map(([text]) => text))];
+  return [...new Set(htmlHeads.filter((h) => !mdHeads.has(words(h.text))).map((h) => h.text))];
 }
 
 /** Text that links an API reference or an MCP reference: what S1 wants in a skill, and what declares an API. */
@@ -96,13 +149,27 @@ export function apiPresence({ openapiSpec, apiIndexJson, rels, catalogJson, llms
 }
 
 /**
- * Up to n URLs at most one path segment deep (/, /about, /privacy), spread
- * across the list. A sample spread across a sitemap of entity pages tends to
- * miss these, and they're the pages most likely to inherit a layout's metadata.
+ * The pages the W checks read: every kind of page, not a spread that a big template drowns out.
+ * URLs are grouped by template, the first path segment plus the depth (/creatures/a/b and
+ * /creatures/c/d share /creatures/*\/*; one-segment pages share /*; / is its own). A group of
+ * up to 20 URLs is static pages, all read; a bigger group is a template, three read with spread().
+ * Templates come first, then static pages by shortest path, up to `cap` pages.
+ * Returns { pages, templates: [{ pattern, count, urls }], static: number read, skipped: static pages not read }.
  */
-export function shallowPages(urls, n) {
-  const shallow = urls.filter((u) => { try { return new URL(u).pathname.split('/').filter(Boolean).length <= 1; } catch { return false; } });
-  return spread(shallow, n);
+export function samplePages(urls, { cap = 40, staticMax = 20, perTemplate = 3 } = {}) {
+  const pattern = (u) => {
+    const segs = pathSegments(u);
+    return segs.length === 0 ? '/' : segs.length === 1 ? '/*' : `/${segs[0]}/${Array(segs.length - 1).fill('*').join('/')}`;
+  };
+  const groups = new Map();
+  for (const u of urls) groups.set(pattern(u), [...(groups.get(pattern(u)) ?? []), u]);
+  const templates = [...groups].filter(([, us]) => us.length > staticMax).map(([p, us]) => ({ pattern: p, count: us.length, urls: spread(us, perTemplate) }));
+  const statics = [...groups].filter(([, us]) => us.length <= staticMax).flatMap(([, us]) => us)
+    .map((u, i) => ({ u, i, d: pathDepth(u), n: u.length })).sort((a, b) => a.d - b.d || a.n - b.n || a.i - b.i).map((x) => x.u);
+  const pages = templates.flatMap((t) => t.urls).slice(0, cap);
+  const room = Math.max(0, cap - pages.length);
+  pages.push(...statics.slice(0, room));
+  return { pages, templates, static: Math.min(room, statics.length), skipped: Math.max(0, statics.length - room) };
 }
 
 /**
@@ -204,6 +271,7 @@ export function formatRecorded(x) {
     parts.push(`Google: ${[traffic(g), index].filter(Boolean).join('; ')}`);
   }
   if (x.bing && typeof x.bing === 'object') parts.push(`Bing: ${traffic(x.bing)}`);
+  if (Array.isArray(x.queries) && x.queries.length) parts.push(`${x.queries.length} top quer${x.queries.length === 1 ? 'y' : 'ies'} recorded`);
   const when = [x.attempts == null && parts.length ? x.period : null, x.date].filter(Boolean).join(', ');
   const text = parts.length ? parts.join('. ') : String(x.result ?? '');
   return `${text}${when ? ` (${when})` : ''}`.replace(/\|/g, '/');

@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, shallowPages, sharedCardText, linkRels, apiPresence, missingSections, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -161,12 +161,32 @@ test('formatRecorded shows structured T6 numbers and free text', () => {
     formatRecorded({ period: 'last 3 months', google: { clicks: 24, impressions: 630, ctr: 3.8, position: 18.2, indexed: 120, crawled_not_indexed: 40 }, bing: { clicks: 31 }, date: '2026-10-01' }),
     'Google: 24 clicks, 630 impressions, 3.8% CTR, position 18.2; 120 indexed, 40 crawled but not indexed. Bing: 31 clicks (last 3 months, 2026-10-01)',
   );
+  assert.equal(formatRecorded({ google: { clicks: 5 }, queries: [{ query: 'q', page: '/' }, { query: 'r', page: '/a' }] }), 'Google: 5 clicks. 2 top queries recorded');
 });
 
-test('shallowPages keeps pages at most one segment deep, spread across them', () => {
-  const urls = ['https://example.com', 'https://example.com/about', 'https://example.com/items/a', 'https://example.com/privacy/', 'not a url'];
-  assert.deepEqual(shallowPages(urls, 5), ['https://example.com', 'https://example.com/about', 'https://example.com/privacy/']);
-  assert.equal(shallowPages(urls, 2).length, 2);
+test('samplePages reads every static page and three of each template', () => {
+  const site = (paths) => paths.map((p) => `https://example.com${p}`);
+  const statics = ['/', '/about', '/privacy', '/terms', '/hall', '/graveyard', '/skills', '/how-it-works', '/credits', '/docs/mcp', '/docs/api', '/agents/openclaw', '/agents/claude-code'];
+  const many = (prefix, n, depth = 2) => Array.from({ length: n }, (_, i) => (depth === 3 ? `${prefix}/owner-${i}/pet-${i}` : `${prefix}/item-${i}`));
+  const urls = site([...statics, ...many('/creatures', 344, 3), ...many('/agent', 274), ...many('/animals', 81)]);
+  const s = samplePages(urls);
+  assert.deepEqual(s.templates.map((t) => [t.pattern, t.count, t.urls.length]), [['/creatures/*/*', 344, 3], ['/agent/*', 274, 3], ['/animals/*', 81, 3]]);
+  assert.equal(s.static, 13);
+  assert.equal(s.skipped, 0);
+  assert.equal(s.pages.length, 22);
+  for (const p of site(statics)) assert.ok(s.pages.includes(p), p);
+  assert.equal(s.pages[9], 'https://example.com/'); // static pages after the templates, shortest path first
+});
+
+test('samplePages treats usernames at the root as a template, and holds the cap', () => {
+  const urls = ['https://example.com/', ...Array.from({ length: 500 }, (_, i) => `https://example.com/user${i}`)];
+  const s = samplePages(urls);
+  assert.deepEqual(s.templates.map((t) => [t.pattern, t.urls.length]), [['/*', 3]]);
+  assert.equal(s.pages.length, 4);
+  const wide = Array.from({ length: 60 }, (_, i) => `https://example.com/s${i}/page`); // 60 small groups of one
+  const capped = samplePages(wide);
+  assert.equal(capped.pages.length, 40);
+  assert.equal(capped.skipped, 20);
 });
 
 test('sharedCardText flags pages whose card shows the layout default', () => {
@@ -224,4 +244,42 @@ test('missingSections lists headings the page has and its markdown copy lacks', 
   assert.deepEqual(missingSections('<p>no headings</p>', ''), []);
   // Page chrome and screen-reader-only headings aren't sections.
   assert.deepEqual(missingSections('<nav><h2>Menu</h2></nav><h2 class="visually-hidden">Skip</h2><h1>Home</h1><footer><h3>Links</h3></footer>', '# Home'), []);
+});
+
+test('list shows three items, then how many more', () => {
+  assert.equal(list(['a', 'b']), 'a, b');
+  assert.equal(list(['a', 'b', 'c', 'd', 'e']), 'a, b, c, +2 more');
+  assert.equal(list(['a', 'b', 'c', 'd'], '; '), 'a; b; c, +1 more');
+});
+
+test('norm and pathDepth compare URLs by what they name', () => {
+  assert.equal(norm('https://Example.com/about/#team'), 'https://example.com/about');
+  assert.equal(norm('https://example.com/?q=1'), 'https://example.com/?q=1');
+  assert.equal(pathDepth('https://example.com/'), 0);
+  assert.equal(pathDepth('/docs/mcp/'), 2);
+});
+
+test('decodeText decodes entities and collapses whitespace', () => {
+  assert.equal(decodeText(' Talks &amp; Writing&nbsp;&#8212;\n &#x27;now&#39; &lt;b&gt; '), "Talks & Writing — 'now' <b>");
+  assert.equal(decodeText('&amp;lt;'), '&lt;'); // decoded once, not twice
+});
+
+test('headings keeps the page structure, a header included, and leaves out chrome', () => {
+  const html = '<nav><h2>Menu</h2></nav><article><header><h1>Title</h1></header><h2 class="x">Part <em>one</em></h2><h3 class="sr-only">Skip</h3></article><aside><h3>Ad</h3></aside><footer><h4>Links</h4></footer>';
+  assert.deepEqual(headings(html), [{ level: 1, text: 'Title' }, { level: 2, text: 'Part one' }]);
+});
+
+test('sitemapEntries reads a urlset and an index', () => {
+  assert.deepEqual(sitemapEntries('<urlset><url><loc>https://e.com/a?x=1&amp;y=2</loc><lastmod>2026-10-01</lastmod></url><url><loc> https://e.com/b </loc></url></urlset>'),
+    [{ loc: 'https://e.com/a?x=1&y=2', lastmod: '2026-10-01' }, { loc: 'https://e.com/b', lastmod: undefined }]);
+  assert.deepEqual(sitemapEntries('<sitemapindex><sitemap><loc>https://e.com/s1.xml</loc><lastmod>2026-10-02</lastmod></sitemap></sitemapindex>'),
+    [{ loc: 'https://e.com/s1.xml', lastmod: '2026-10-02' }]);
+});
+
+test('headingSkips finds a level skipped going down, not going back up', () => {
+  const hs = (...levels) => levels.map((level) => ({ level, text: 'x' }));
+  assert.deepEqual(headingSkips(hs(1, 3, 2)), ['h1 to h3']);
+  assert.deepEqual(headingSkips(hs(1, 2, 3, 2, 3)), []);
+  assert.deepEqual(headingSkips(hs(1, 2, 4, 2, 2)), ['h2 to h4']);
+  assert.deepEqual(headingSkips([]), []);
 });

@@ -46,7 +46,7 @@ The scorecard covers what's visible from outside. It checks:
 - robots.txt, the sitemap and llms.txt;
 - security.txt and the honesty of the A2A path;
 - false declarations;
-- a sample of up to 20 pages for titles, canonical URLs, indexability, structured data, link previews and page structure;
+- up to 40 pages for titles, canonical URLs, indexability, structured data, link previews and page structure: every static page, and three pages of each generated template (a group of more than 20 URLs with the same first segment and depth);
 - the OpenAPI document and the API's error answers;
 - the hosted MCP edge and the MCP tools;
 - a sample of skill files: spec names and descriptions, and links to llms.txt and the API reference;
