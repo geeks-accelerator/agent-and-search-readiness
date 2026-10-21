@@ -334,6 +334,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - A rendered 1200×630 card for every entity (all six do this), drawn only for pages that exist: achurch's card 404s wherever its page would. The alt text repeats the card's words.
 - Version the card URL (`/og/v1/`). Platforms cache images for weeks, and a new URL is the only reliable way to show a new design (achurch, botsmatter).
 - Set `twitter:card` explicitly: X doesn't infer the card type, and without it a link may get the small card. Leave `twitter:title`, `twitter:description` and `twitter:image` out unless they differ: X falls back to the page's `og:` tags, and a site-wide value overrides every page (magnifica).
+- **Every page's card shows its own title and description:** on X, `twitter:title` (else `og:title`) and the same for the description; on Facebook and LinkedIn, `og:title` and `og:description`. Put the homepage's copy on the homepage, and keep only shared fields in the root layout: the image, `twitter:card`, the site name. A framework that merges metadata shallowly, as Next.js does, gives a page that sets `openGraph` but not `twitter` the layout's whole Twitter block, and a page that sets neither the layout's whole card. In October 2026, pages at animalhouse and inbed shared on X as their homepage this way. The scorecard warns when a sampled page, shallow pages included, shows another page's text.
 - 1200×630 works for Meta, LinkedIn and X. X's large card needs a 2:1 image under 5 MB, and not SVG.
 - Don't customize Open Graph tags without the title and description too: search reads those (achurch).
 - **Done when** the scorecard passes W5.
@@ -731,7 +732,7 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 - **A second `_agent` TXT record** makes AID clients fail on ambiguity.
 - **A catalog entry's type is a claim.** Typing `mcp.json` as a server card is a false declaration even when `mcp.json` itself is honest.
 - **A client-side `document.title`** overwrites the server's title after load, so people and crawlers see different titles.
-- **A site-wide `twitter:title`** overrides every page's own `og:title` on X.
+- **A site-wide `twitter:title`** overrides every page's own `og:title` on X. Next.js adds one unasked: metadata merges shallowly, so a page that sets `openGraph` but not `twitter` keeps the layout's `twitter` title and description.
 - **Two items with the same name can share one URL.** animalhouse's creature page 404'd when an agent reused a name, while the sitemap still listed the URL; the lookup now picks the item the URL means (a living one first, then one with a gravestone). W3's sitemap sample catches it.
 - **`og:locale` and JSON-LD `inLanguage` use different formats:** `en_US` and `en-US`, `zh_CN` and `zh-Hans`.
 - **Retired rich results still get added.** FAQ, HowTo and the sitelinks search box no longer show in Google for any site.
@@ -812,7 +813,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | W2 | Self-referencing canonicals, one host in one redirect | R | discovery | score |
 | W3 | One indexability rule; sitemap of 200 canonical URLs; real 404s | R | discovery, honesty | score |
 | W4 | True structured data: Organization and WebSite, breadcrumbs, honest types, escaped | R | honesty | score |
-| W5 | Link previews: Open Graph, `twitter:card`, declared images, versioned cards | R | discovery | score |
+| W5 | Link previews: Open Graph, `twitter:card`, each page's own card text, declared images, versioned cards | R | discovery | score |
 | W6 | One h1, `html lang`, alt text, unique paragraph on generated pages | R | discovery | score |
 | W7 | Internal links with descriptive anchors, no orphan pages | R | discovery | review |
 | W8 | Core Web Vitals on the main pages | Rec | discovery | review |
@@ -932,6 +933,7 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Crawlable links | Search Central | https://developers.google.com/search/docs/crawling-indexing/links-crawlable |
 | Open Graph | ogp.me | https://ogp.me/ |
 | Share images (Meta, LinkedIn) | platform docs | https://developers.facebook.com/docs/sharing/webmasters/images · https://www.linkedin.com/help/linkedin/answer/a521928 |
+| Next.js metadata merging | Next.js docs, read 2026-10-21 | https://nextjs.org/docs/app/api-reference/functions/generate-metadata#merging |
 | X cards | archived X developer docs | https://web.archive.org/web/20260204074639/https://developer.x.com/en/docs/x-for-websites/cards/overview/summary-card-with-large-image |
 | Bing webmaster guidelines | Bing | https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a |
 | IndexNow | protocol FAQ | https://www.indexnow.org/faq |

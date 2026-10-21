@@ -21,6 +21,53 @@ export function spread(list, n) {
 }
 
 /**
+ * Up to n URLs at most one path segment deep (/, /about, /privacy), spread
+ * across the list. A sample spread across a sitemap of entity pages tends to
+ * miss these, and they're the pages most likely to inherit a layout's metadata.
+ */
+export function shallowPages(urls, n) {
+  const shallow = urls.filter((u) => { try { return new URL(u).pathname.split('/').filter(Boolean).length <= 1; } catch { return false; } });
+  return spread(shallow, n);
+}
+
+/**
+ * Pages whose share card shows another page's text: a title or description
+ * that several pages share and that isn't the page's own (its <title> or meta
+ * description, or the homepage's when it matches no page's own). X reads twitter:title and twitter:description first and falls
+ * back to og:; Facebook and LinkedIn read og:. Each page is
+ * { path, title, description, og: { title, description }, twitter: { title, description } }.
+ * Returns { x, og }, each { paths, text } with text an example of the shared value.
+ */
+export function sharedCardText(pages) {
+  const views = {
+    x: (p) => [p.twitter?.title ?? p.og?.title, p.twitter?.description ?? p.og?.description],
+    og: (p) => [p.og?.title, p.og?.description],
+  };
+  const out = {};
+  for (const [key, view] of Object.entries(views)) {
+    const flagged = new Set();
+    let text;
+    for (const i of [0, 1]) {
+      const groups = new Map();
+      for (const p of pages) {
+        const value = view(p)[i];
+        if (value) groups.set(value, [...(groups.get(value) ?? []), p]);
+      }
+      for (const [value, members] of groups) {
+        if (members.length < 2) continue;
+        // A shared value belongs to the page it matches; failing that, to the homepage, where a layout's default comes from.
+        const own = (p) => value === (i === 0 ? p.title : p.description);
+        const owner = members.some(own) ? own : (p) => p.path === '/';
+        const borrowed = members.filter((p) => !owner(p));
+        if (borrowed.length) { borrowed.forEach((p) => flagged.add(p.path)); text ??= value; }
+      }
+    }
+    out[key] = { paths: [...flagged], text };
+  }
+  return out;
+}
+
+/**
  * The site's own links in an llms.txt: markdown links and bare URLs, resolved
  * against the file's URL, without fragments, kept only when they point at one
  * of the site's hosts. Templates such as /items/{id} are skipped.

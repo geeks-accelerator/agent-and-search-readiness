@@ -10,9 +10,9 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, shallowPages, sharedCardText, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '1.2.1';
+export const VERSION = '1.3.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
@@ -627,6 +627,8 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
     const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)].map((m) => [m[1].toLowerCase(), m[3] ?? m[4]]));
     const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
     const meta = (html, key, val) => tags(html, 'meta').find((a) => (a[key] ?? '').toLowerCase() === val)?.content;
+    const text = (v) => (v === undefined ? undefined : decode(v));
+    const tw = (html, field) => text(meta(html, 'name', `twitter:${field}`) ?? meta(html, 'property', `twitter:${field}`));
     const jsonLd = (html) => {
       const ld = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
       const types = [];
@@ -634,7 +636,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
       ld.forEach(walk);
       return { ld, types };
     };
-    const pages = await mapLimit(pick, 4, async (u) => {
+    const readPage = async (u) => {
       const r = await get(u, { headers: { accept: 'text/html' } });
       const h = r.text;
       const { ld, types } = jsonLd(h);
@@ -644,14 +646,19 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
         description: decode(meta(h, 'name', 'description') ?? ''),
         robots: (meta(h, 'name', 'robots') ?? '').toLowerCase(),
         canonicals: tags(h, 'link').filter((a) => (a.rel ?? '').toLowerCase() === 'canonical').map((a) => a.href),
-        og: { title: meta(h, 'property', 'og:title'), description: meta(h, 'property', 'og:description'), image: meta(h, 'property', 'og:image'), width: meta(h, 'property', 'og:image:width'), alt: meta(h, 'property', 'og:image:alt') },
+        og: { title: text(meta(h, 'property', 'og:title')), description: text(meta(h, 'property', 'og:description')), image: meta(h, 'property', 'og:image'), width: meta(h, 'property', 'og:image:width'), alt: meta(h, 'property', 'og:image:alt') },
         twitterCard: meta(h, 'name', 'twitter:card'),
+        twitter: { title: tw(h, 'title'), description: tw(h, 'description') },
         h1: (h.match(/<h1[\s>]/gi) ?? []).length,
         lang: /<html[^>]*\slang=["']?[\w-]+/i.test(h),
         imgNoAlt: tags(h, 'img').filter((a) => a.alt === undefined).length,
         ldBroken: ld.filter((x) => x === null).length, types,
       };
-    });
+    };
+    const pages = await mapLimit(pick, 4, readPage);
+    // W5's shared card text also reads a few shallow pages (/, /about) the spread missed. Only W5's warning sees them.
+    const picked = new Set(pick.map(norm));
+    const extra = await mapLimit(shallowPages([BASE, ...urls].filter((u) => !picked.has(norm(u))), 6), 4, readPage);
     const ok200 = pages.filter((p) => p.status === 200 && p.html);
     const short = (u) => u.replace(BASE, '') || '/';
     const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
@@ -773,8 +780,15 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
         if (missingOg.length) problems.push(`missing og:title, og:description or og:image on ${list(missingOg)}`);
         if (noCard.length) problems.push(`no twitter:card on ${list(noCard)}`);
         if (badImages.length) problems.push(`share images that don't load: ${list(badImages)}`);
-        if (problems.length) miss(id, name, level, problems.join('; '));
-        else if (undeclared.length) record(id, name, level, 'warn', `og:image size or alt text not declared on ${list(undeclared)}`);
+        const cardPages = [...ok200, ...extra.filter((p) => p.status === 200 && p.html)].map((p) => ({ ...p, path: short(p.url) }));
+        const shared = sharedCardText(cardPages);
+        const clip = (t) => (t.length > 50 ? `${t.slice(0, 50)}…` : t);
+        const warns = [];
+        if (shared.x.paths.length) warns.push(`X shows another page's title or description on ${list(shared.x.paths)} ("${clip(shared.x.text)}"; twitter:title and twitter:description, else og:)`);
+        if (shared.og.paths.length) warns.push(`Facebook and LinkedIn show another page's title or description on ${list(shared.og.paths)} ("${clip(shared.og.text)}")`);
+        if (undeclared.length) warns.push(`og:image size or alt text not declared on ${list(undeclared)}`);
+        if (problems.length) miss(id, name, level, problems.concat(warns).join('; '));
+        else if (warns.length) record(id, name, level, 'warn', warns.join('; '));
         else pass(id, name, level, `Open Graph and twitter:card on ${ok200.length} sampled pages; share images load`);
       }
       // W6 page structure

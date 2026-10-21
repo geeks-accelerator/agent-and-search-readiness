@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, shallowPages, sharedCardText, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -154,4 +154,37 @@ test('formatRecorded shows structured T6 numbers and free text', () => {
     formatRecorded({ period: 'last 3 months', google: { clicks: 24, impressions: 630, ctr: 3.8, position: 18.2, indexed: 120, crawled_not_indexed: 40 }, bing: { clicks: 31 }, date: '2026-10-01' }),
     'Google: 24 clicks, 630 impressions, 3.8% CTR, position 18.2; 120 indexed, 40 crawled but not indexed. Bing: 31 clicks (last 3 months, 2026-10-01)',
   );
+});
+
+test('shallowPages keeps pages at most one segment deep, spread across them', () => {
+  const urls = ['https://example.com', 'https://example.com/about', 'https://example.com/items/a', 'https://example.com/privacy/', 'not a url'];
+  assert.deepEqual(shallowPages(urls, 5), ['https://example.com', 'https://example.com/about', 'https://example.com/privacy/']);
+  assert.equal(shallowPages(urls, 2).length, 2);
+});
+
+test('sharedCardText flags pages whose card shows the layout default', () => {
+  const home = { title: 'Home', description: 'The site, in a sentence.' };
+  const page = (path, title, description, og = {}, twitter = {}) => ({ path, title, description, og, twitter });
+  const pages = [
+    // The homepage's card title differs from its <title>: still its own.
+    page('/', 'Home | Site', home.description, { title: 'Home', description: home.description }, { title: 'Home', description: home.description }),
+    // Sets Open Graph only, so a shallow merge leaves the layout's twitter: tags.
+    page('/about', 'About', 'About the site.', { title: 'About', description: 'About the site.' }, { title: 'Home', description: home.description }),
+    // Sets neither.
+    page('/terms', 'Terms', 'The terms.', { title: 'Home', description: home.description }, { title: 'Home', description: home.description }),
+    // Its own card, with no twitter:title: X falls back to og:.
+    page('/items/a', 'Item A', 'Item A, described.', { title: 'Item A', description: 'Item A, described.' }),
+  ];
+  const shared = sharedCardText(pages);
+  assert.deepEqual(shared.x.paths, ['/about', '/terms']);
+  assert.equal(shared.x.text, 'Home');
+  assert.deepEqual(shared.og.paths, ['/terms']);
+});
+
+test('sharedCardText leaves pages alone when the shared text is their own', () => {
+  // Two items with the same name: W1 reports the duplicate title, not W5.
+  const p = (path) => ({ path, title: 'Buddy', description: 'A creature.', og: { title: 'Buddy', description: 'A creature.' }, twitter: {} });
+  const shared = sharedCardText([p('/a/buddy'), p('/b/buddy')]);
+  assert.deepEqual(shared.x.paths, []);
+  assert.deepEqual(shared.og.paths, []);
 });

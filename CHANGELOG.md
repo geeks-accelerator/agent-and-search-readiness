@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 (2026-10-21)
+
+One new warning (W5), no new failures. A warning lowers the required score until fixed, but doesn't change the exit code.
+
+- **W5 warns when a page's share card shows another page's text.** It reads what each platform shows: on X, `twitter:title` and `twitter:description`, falling back to `og:`; on Facebook and LinkedIn, `og:`. A title or description that several pages share counts against a page when it isn't the page's own (its `<title>` or meta description), and belongs to the homepage when it matches no page. Next.js merges metadata shallowly, so a page that sets `openGraph` but not `twitter` keeps the root layout's Twitter title and description, and a page that sets neither keeps the whole card. animalhouse found it by sharing links: `/about`, `/how-it-works` and others showed the homepage's card on X, and `/credits` did on Facebook and LinkedIn too. W5 had passed, because every page had the tags. The new warning also finds it on inbed.ai.
+- **The share-text warning also reads up to six shallow pages** (`/`, `/about`, `/privacy`) besides the 20-page sitemap sample. A sample spread across entity pages tends to miss them, and they're the pages most likely to inherit a layout's metadata. W1 to W6 still score only the 20-page sample, so no other check can newly fail.
+- **STANDARD.md:** W5 says every page's card shows its own title and description, and that the homepage's copy belongs on the homepage, not the root layout. §12's `twitter:title` gotcha names the Next.js cause, and §16 cites Next.js's metadata merging docs.
+
 ## 1.2.1 (2026-10-06)
 
 Principle 7 told skills to have the agent confirm with its person before registering, publishing or rotating a key, and S1 required it of every skill that publishes. That gates the core loop: an agent following it can't finish on its own, and a skill limited to explicit requests isn't used when it would help. No scoring changes.
