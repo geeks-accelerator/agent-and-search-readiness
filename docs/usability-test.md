@@ -17,7 +17,7 @@ The scorecard checks what a site declares. This test checks whether an agent suc
 examples/usability-test.sh <your-domain> "<your goal>" --attempts 5 --model <model> --max-turns <turns>
 ```
 
-It writes one transcript per attempt to `usability-<domain>-<timestamp>-<n>.json`. Any agent works; record which one you used, its full model ID (an alias like `sonnet` moves to each new release) and its turn limit.
+It writes one transcript per attempt to `usability-<domain>-<timestamp>-<n>.json`, and ends with each attempt's own `RESULT` line, turns and cost, plus a T5 entry for `recorded.json` to finish by hand. Any agent works; record which one you used, its full model ID (an alias like `sonnet` moves to each new release) and its turn limit.
 
 - **Fresh for real.** Each attempt runs in an empty temporary folder with no MCP servers and no user settings, and the prompt gives a random test name (`test-usability-` plus six characters). Claude Code still tells the agent which account is signed in, unless `ANTHROPIC_API_KEY` is set: then the runner adds `--bare`, which reads no login, memory or CLAUDE.md. drifts' first run, before this, named its test account after the operator.
 - **Budget.** Without limits, one attempt on a large model took drifts 7 minutes, 132 turns and $6.85, so five attempts a month cost about $35 per site at October 2026 prices. Choose a model and a turn limit, and keep both the same each month so the results compare.
@@ -40,10 +40,10 @@ The headline is the **first-try success rate**: "4 of 5". The errors are the to-
 Put the result in a JSON file next to your status page, and pass it to the matrix:
 
 ```
-npx readiness-audit@1 --matrix example.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
+npx readiness-audit@2 --matrix example.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
-The file's format is in `examples/recorded.json`. T6 (search numbers from Search Console and Bing Webmaster Tools) goes in the same file, as fields (clicks, impressions, CTR, position, indexed and not indexed, for Google and Bing) so months compare. Reading those numbers takes a person, or a browser session, with access to both consoles.
+The file's format is in `examples/recorded.json`. T5 is fields, so months compare: `attempts`, `first_try`, `model` (the full ID), `max_turns`, `median_calls`, `stops`, `cost_usd` and `date`. The runner fills in what the transcripts show; `median_calls` and `stops` come from reading the reports, and `first_try` is the agent's own claim until you've checked it. T6 (search numbers from Search Console and Bing Webmaster Tools) goes in the same file, as fields (clicks, impressions, CTR, position, indexed and not indexed, for Google and Bing) so months compare. Reading those numbers takes a person, or a browser session, with access to both consoles.
 
 ## Rules
 

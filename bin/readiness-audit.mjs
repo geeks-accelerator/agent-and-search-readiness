@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 // readiness-audit: score a live site against the Agent and Search Readiness Standard.
 //
-//   readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous] [--base url]
+//   readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url]
 //   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]   (a markdown status page)
+//   readiness-audit --logs <access-log> [--json]   (who requests the discovery files)
 //
 // Exits 1 when a required check fails, so it can gate a deploy.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { audit, matrix, score, LEVELS, REVIEW, VERSION } from '../src/audit.mjs';
 import { parsePrevious, compareResults, formatComparison } from '../src/helpers.mjs';
+import { logTally, formatLogs } from '../src/logs.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -21,26 +24,37 @@ const mcpOpt = valueOf('--mcp');
 const recordedPath = valueOf('--recorded');
 const comparePath = valueOf('--compare');
 const base = valueOf('--base');
-const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare', '--base'].includes(args[i - 1]))
+const logsPath = valueOf('--logs');
+const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare', '--base', '--logs'].includes(args[i - 1]))
   .map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));
-const opts = { hasApi: !flag('--no-api'), mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp'), base: base ?? null };
+const opts = { mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp'), base: base ?? null };
 if (base) {
   let u;
   try { u = new URL(base); } catch { u = null; }
   if (!u || !['http:', 'https:'].includes(u.protocol)) { console.error(`--base needs an http(s) URL, like http://localhost:3000 (got ${base})`); process.exit(2); }
 }
 
+if (logsPath) {
+  const tally = logTally();
+  try {
+    for await (const line of createInterface({ input: createReadStream(logsPath), crlfDelay: Infinity })) tally.add(line);
+  } catch (e) { console.error(`Couldn't read ${logsPath}: ${e.message}`); process.exit(2); }
+  const rep = tally.result();
+  console.log(flag('--json') ? JSON.stringify(rep, null, 2) : formatLogs(rep).join('\n'));
+  process.exit(0);
+}
+
 if (!domains.length || flag('--help') || flag('-h')) {
   console.error(`readiness-audit ${VERSION}
 
 Usage:
-  readiness-audit <domain> [--mcp /path] [--no-mcp] [--no-api] [--json] [--compare previous] [--base url]
+  readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url]
   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
+  readiness-audit --logs <access-log> [--json]
 
 Options:
   --mcp /path   where your hosted MCP endpoint lives (default /mcp)
   --no-mcp      skip the hosted MCP checks
-  --no-api      skip the API checks, for a site with no public API
   --json        print the results as JSON
   --matrix      score several sites and print a markdown status page
   --recorded f  with --matrix: add recorded T5 and T6 results from a JSON file
@@ -48,7 +62,13 @@ Options:
                 --matrix (docs/readiness-status.md) or a saved --json report
   --base url    score a local or preview build as the domain, before you
                 deploy (http://localhost:3000); DNS and host redirects are
-                skipped`);
+                skipped
+  --logs f      count requests for the discovery files in an exported access
+                log (combined log format or JSON lines), by client family;
+                prints counts, never addresses
+
+The API checks run when /openapi.json or /api answers, or the site declares
+an API (a service-desc link, an API catalog, an API link in llms.txt).`);
   process.exit(domains.length ? 0 : 2);
 }
 

@@ -1,12 +1,35 @@
 # Changelog
 
-## 1.3.0 (2026-10-21)
+## 2.0.0 (2026-10-21)
 
-One new warning (W5), no new failures. A warning lowers the required score until fixed, but doesn't change the exit code.
+From an adopting agent's review: a full score showed a site was set up correctly, not that agents did better on it, and the default run graded content sites on an API they don't have. This release makes the score fit the site, checks more of what agents and link previews actually read, and gives T5 and the traffic numbers a recorded form. Pin `readiness-audit@2`.
 
-- **W5 warns when a page's share card shows another page's text.** It reads what each platform shows: on X, `twitter:title` and `twitter:description`, falling back to `og:`; on Facebook and LinkedIn, `og:`. A title or description that several pages share counts against a page when it isn't the page's own (its `<title>` or meta description), and belongs to the homepage when it matches no page. Next.js merges metadata shallowly, so a page that sets `openGraph` but not `twitter` keeps the root layout's Twitter title and description, and a page that sets neither keeps the whole card. animalhouse found it by sharing links: `/about`, `/how-it-works` and others showed the homepage's card on X, and `/credits` did on Facebook and LinkedIn too. W5 had passed, because every page had the tags. The new warning also finds it on inbed.ai.
-- **The share-text warning also reads up to six shallow pages** (`/`, `/about`, `/privacy`) besides the 20-page sitemap sample. A sample spread across entity pages tends to miss them, and they're the pages most likely to inherit a layout's metadata. W1 to W6 still score only the 20-page sample, so no other check can newly fail.
-- **STANDARD.md:** W5 says every page's card shows its own title and description, and that the homepage's copy belongs on the homepage, not the root layout. §12's `twitter:title` gotcha names the Next.js cause, and §16 cites Next.js's metadata merging docs.
+**Checks that can newly fail** (why this is a major version):
+- **W1 to W6 also sample up to six shallow pages** (`/about`, `/privacy`), besides 20 pages spread across the sitemap. A spread across entity pages tends to miss them, and they're the pages most likely to inherit a layout's metadata. Any existing W rule can now fail on them.
+- **W5 fails when a page's share card shows another page's text.** It reads what each platform shows: on X, `twitter:title` and `twitter:description`, falling back to `og:`; on Facebook and LinkedIn, `og:`. Shared text counts against a page when it isn't the page's own (its `<title>` or meta description), and belongs to the homepage when it matches no page. Next.js merges metadata shallowly, so a page that sets `openGraph` but not `twitter` keeps the root layout's Twitter title and description. animalhouse found this by sharing links, after W5 had passed; inbed.ai has it too.
+- **The API checks run whenever a site has or declares an API,** and `--no-api` is gone. They run when `/openapi.json` or `/api` answers, or a `service-desc` link, an API catalog or llms.txt names an API; a declared API that doesn't answer fails A1. A site with neither skips them, as a site with no hosted MCP endpoint skips the MCP checks. Drop `--no-api` from your commands; an unknown flag is ignored.
+
+**New warnings:**
+- **D4** reports llms.txt links that redirect: link the destination.
+- **D5 asks for `service-desc` and `api-catalog` only on a site with an API.** A site with none needs only `describedby`, since a `service-desc` naming an OpenAPI document would declare one.
+- **D8** compares one page llms.txt links with its markdown copy, when the page serves one, and warns about sections the copy lacks. The homepage's markdown may be llms.txt, so it isn't compared.
+
+**New:**
+- **`--logs <file>`** counts requests for the discovery files in an exported access log (combined log format, or JSON lines from Cloudflare Logpush, Vercel or Railway), by client family, and how many readers of each file also called the API. It prints counts, never addresses. Its paths are the audit's own list, so the two can't drift.
+- **The report and status page** say whether a site has a public API (`has_api`, a "Public API" row), and the report gives the sampled pages' median HTML size (`html_kb_median`, also in W6's line). Size isn't scored.
+- **T5 is recorded as fields:** `attempts`, `first_try`, `model`, `max_turns`, `median_calls`, `stops`, `cost_usd`, `date`. Convert a free-text T5 `result`.
+- **The T5 runner** ends with each attempt's `RESULT`, turns and cost, and a T5 entry to finish by hand. It also no longer exits silently before the first attempt: under `pipefail`, the random test name's `tr` ended on SIGPIPE, which stopped the script.
+
+**STANDARD.md:**
+- W3: retiring a page (a permanent redirect to what replaced it, out of every discovery file in the same change, a test that it keeps redirecting).
+- W4: a visible date matches the structured one (Google's publication-dates guidance).
+- W5: every page's card shows its own title and description; the homepage's copy belongs on the homepage, not the root layout. §12's `twitter:title` gotcha names the Next.js cause.
+- W6: the median HTML size, reported and not scored.
+- D8: a page's markdown copy has the page's sections.
+- §11: guard tests for the sitemap against the routes ([recipe](docs/recipes.md#the-sitemap-equals-the-routes-t4-w3)), markdown copies against their pages, and retired URLs.
+- T3: classify traffic before counting it; a browser, headless or unidentified client counts as an agent only when something backs it up, such as calling the API.
+- Considered and left out: in-page anchors, favicon versioning, prerendering and view transitions.
+- §16: Next.js metadata merging, Google on redirects and on publication dates.
 
 ## 1.2.1 (2026-10-06)
 

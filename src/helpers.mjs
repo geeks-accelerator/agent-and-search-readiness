@@ -21,6 +21,81 @@ export function spread(list, n) {
 }
 
 /**
+ * The discovery files the audit reads, by name. --logs counts requests for the same paths,
+ * so what the scorecard checks and what the logs measure can't drift apart.
+ */
+export const DISCOVERY_FILES = {
+  robots: '/robots.txt',
+  sitemap: '/sitemap.xml',
+  llms: '/llms.txt',
+  llmsFull: '/llms-full.txt',
+  openapi: '/openapi.json',
+  apiIndex: '/api',
+  apiCatalog: '/.well-known/api-catalog',
+  security: '/.well-known/security.txt',
+  authMd: '/auth.md',
+  docsMd: '/docs/api.md',
+  agentCard: '/.well-known/agent-card.json',
+  ard: '/.well-known/ard.json',
+  aiCatalog: '/.well-known/ai-catalog.json',
+  skills: '/.well-known/agent-skills/index.json',
+  prm: '/.well-known/oauth-protected-resource',
+  asMeta: '/.well-known/oauth-authorization-server',
+  aiPlugin: '/.well-known/ai-plugin.json',
+  legacyCard: '/.well-known/mcp.json',
+  wkCard: '/.well-known/mcp/server-card.json',
+};
+
+/** The AI crawlers and assistant fetchers D15 wants named in robots.txt, as robots.txt user-agent tokens. */
+export const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
+
+/**
+ * Section headings (h1 to h3) the HTML page has and its markdown copy lacks, compared as
+ * lowercase words so formatting doesn't count. Headings in nav, header, footer and aside,
+ * and screen-reader-only ones, are left out. An empty list when they agree.
+ */
+export function missingSections(html, markdown) {
+  const text = (t) => t.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&#x27;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  const words = (t) => text(t).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  // Navigation, page chrome and screen-reader-only headings aren't sections of the page.
+  const body = String(html ?? '').replace(/<(nav|header|footer|aside)\b[\s\S]*?<\/\1>/gi, '').replace(/<h[1-3]\b[^>]*class="[^"]*\b(visually-hidden|sr-only)\b[^"]*"[^>]*>[\s\S]*?<\/h[1-3]>/gi, '');
+  const htmlHeads = [...body.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)].map((m) => [text(m[1]), words(m[1])]).filter(([, w]) => w);
+  const mdHeads = new Set([...String(markdown ?? '').matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)].map((m) => words(m[1].replace(/[*_`[\]]|\]\([^)]*\)/g, ' '))));
+  return [...new Set(htmlHeads.filter(([, w]) => !mdHeads.has(w)).map(([text]) => text))];
+}
+
+/** Text that links an API reference or an MCP reference: what S1 wants in a skill, and what declares an API. */
+export const API_LINK = /openapi|\/docs\/api|https?:\/\/[^\s)]+\/api\b/i;
+export const MCP_LINK = /\/docs\/mcp|https?:\/\/[^\s)]+\/mcp\b/i;
+
+/** An RFC 8288 Link header as a Map of rel to hrefs. */
+export function linkRels(header) {
+  const rels = new Map();
+  for (const part of String(header ?? '').split(/,(?=\s*<)/)) {
+    const href = part.match(/<([^>]+)>/)?.[1];
+    const relAttr = part.match(/rel="?([^";]+)"?/)?.[1];
+    if (href && relAttr) for (const r of relAttr.split(/\s+/)) rels.set(r, [...(rels.get(r) ?? []), href]);
+  }
+  return rels;
+}
+
+/**
+ * Whether a site has a public API, the way the audit decides it has a hosted MCP endpoint:
+ * one answers (/openapi.json is an OpenAPI document, or /api answers JSON), or the site
+ * declares one (a service-desc naming an OpenAPI document, an API catalog, an API link in
+ * llms.txt). A declared API gets the API checks even when nothing answers: claims get checked.
+ * Returns { present, answers, declared } with declared naming where the claims are.
+ */
+export function apiPresence({ openapiSpec, apiIndexJson, rels, catalogJson, llmsText }) {
+  const answers = Boolean(openapiSpec?.openapi) || Boolean(apiIndexJson);
+  const declared = [];
+  if ((rels?.get('service-desc') ?? []).some((h) => /openapi/i.test(h))) declared.push('a service-desc Link');
+  if (Array.isArray(catalogJson?.linkset) && catalogJson.linkset.length) declared.push('/.well-known/api-catalog');
+  if (llmsText && API_LINK.test(llmsText)) declared.push('llms.txt');
+  return { present: answers || declared.length > 0, answers, declared };
+}
+
+/**
  * Up to n URLs at most one path segment deep (/, /about, /privacy), spread
  * across the list. A sample spread across a sitemap of entity pages tends to
  * miss these, and they're the pages most likely to inherit a layout's metadata.
@@ -119,13 +194,17 @@ export function formatRecorded(x) {
   const num = (v, label) => (v === undefined || v === null || v === '' ? null : `${v}${label}`);
   const traffic = (o) => [num(o.clicks, ' clicks'), num(o.impressions, ' impressions'), num(o.ctr, '% CTR'), o.position != null ? `position ${o.position}` : null].filter(Boolean).join(', ');
   const parts = [];
+  if (x.attempts != null) { // T5
+    const run = [x.model, x.max_turns != null ? `${x.max_turns} turns max` : null].filter(Boolean).join(', ');
+    parts.push([`${x.first_try ?? '?'} of ${x.attempts} first try`, run || null, num(x.median_calls, ' calls (median)'), num(x.stops, ' stops'), x.cost_usd != null ? `$${x.cost_usd}` : null].filter(Boolean).join('; '));
+  }
   if (x.google && typeof x.google === 'object') {
     const g = x.google;
     const index = [num(g.indexed, ' indexed'), num(g.not_indexed, ' not indexed'), num(g.crawled_not_indexed, ' crawled but not indexed')].filter(Boolean).join(', ');
     parts.push(`Google: ${[traffic(g), index].filter(Boolean).join('; ')}`);
   }
   if (x.bing && typeof x.bing === 'object') parts.push(`Bing: ${traffic(x.bing)}`);
-  const when = [parts.length ? x.period : null, x.date].filter(Boolean).join(', ');
+  const when = [x.attempts == null && parts.length ? x.period : null, x.date].filter(Boolean).join(', ');
   const text = parts.length ? parts.join('. ') : String(x.result ?? '');
   return `${text}${when ? ` (${when})` : ''}`.replace(/\|/g, '/');
 }

@@ -177,6 +177,31 @@ export const isTestAccount = (username: string) => username.toLowerCase().starts
 - **Their own pages:** render them with `noindex`, and leave them out of the sitemap (W3).
 - **A guard test:** create a test account in a fixture and assert it appears in none of the public lists, counts or the sitemap.
 
+## The sitemap equals the routes (T4, W3)
+
+The scorecard samples the sitemap, so it can't see a page the sitemap leaves out. A test can: compare the static routes your framework serves with the URLs the sitemap lists. Entity pages come from the same query on both sides, so test that query once and leave them out here.
+
+```ts
+// sitemap.test.ts (Next.js App Router; adapt the route listing to your framework)
+import { globSync } from 'node:fs';
+import sitemap from '@/app/sitemap';
+
+const NOT_INDEXABLE = ['/sign-in', '/settings']; // the same list the pages' noindex uses (W3)
+const ENTITY_PREFIXES = ['/[items]/'];           // entity pages, tested with their query
+
+test('the sitemap lists every static, indexable route, and only routes that exist', async () => {
+  const routes = globSync('app/**/page.tsx')
+    .filter((f) => !f.includes('['))                              // dynamic routes: tested with their query
+    .map((f) => f.replace(/^app/, '').replace(/\/page\.tsx$/, '').replace(/\/\([^)]+\)/g, '') || '/')
+    .filter((r) => !NOT_INDEXABLE.includes(r));
+  const listed = (await sitemap()).map((e) => new URL(e.url).pathname).filter((p) => !ENTITY_PREFIXES.some((x) => p.startsWith(x)));
+  expect(listed.sort()).toEqual(routes.sort());
+});
+```
+
+- **Both directions:** a routed page missing from the sitemap is a page search may never find; a listed URL with no route is a 404 that W3 fails.
+- **One indexability list:** `NOT_INDEXABLE` is the list the pages' `noindex` reads, not a copy of it.
+
 ## Markdown for agents without a CDN plan (D8)
 
 Before building this, find out whether anyone asks. Host logs often can't tell you (Railway's keep the user agent but not `Accept`), so log markdown requests in middleware for a few weeks:

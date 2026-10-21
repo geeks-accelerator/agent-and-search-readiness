@@ -6,12 +6,12 @@ To switch a project over, give its coding agent one line:
 
 Everything below is for that agent. The lessons at the end come from the projects that switched over first.
 
-1. **Score the live site:** `npx readiness-audit@1 <your-domain>`. It's read-only; run it only against your own sites. Exit code 1 means a required check failed.
+1. **Score the live site:** `npx readiness-audit@2 <your-domain>`. It's read-only; run it only against your own sites. Exit code 1 means a required check failed.
 
 2. **Switch over the docs (one commit):**
    - Replace your repo's old agent-discovery or readiness playbook with the short pointer stub in [STANDARD.md §14](../STANDARD.md#14-adopting-the-standard-in-a-repo). Keep your project-specific notes there, including your T5 goal: the one task a fresh agent should manage on its own (examples in [usability-test.md](usability-test.md#setup)). Choose a goal the agent can finish alone, without another party having to act.
    - Delete any local audit script and old status doc that the scorecard now covers. Keep checks that are truly project-specific as tests.
-   - Generate the status page: `npx readiness-audit@1 --matrix <your-domain> > docs/readiness-status.md`. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there.
+   - Generate the status page: `npx readiness-audit@2 --matrix <your-domain> > docs/readiness-status.md`. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there.
    - Add one rule to your CLAUDE.md or AGENTS.md: after changing discovery files, page metadata or the API, run the scorecard and regenerate docs/readiness-status.md.
 
 3. **Fix what it reports,** required checks first, then recommended. STANDARD.md has the guidance for each ID. Three rules:
@@ -19,7 +19,7 @@ Everything below is for that agent. The lessons at the end come from the project
    - **Decline in writing (principle 9).** If an item doesn't fit your project, list it under "Declined items" in the stub with the reason. Never fake a pass.
    - **Every restriction names the harm it prevents (principle 10).** State consequences as facts (principle 7): what's public, what can't be undone, what costs money. A fresh agent should be able to finish the core loop from your skills and docs alone, and T5 checks that it can.
 
-4. **Verify and ship:** build and test, and score the local build before you deploy: `npx readiness-audit@1 <your-domain> --base http://localhost:<port>`. After the deploy, run `npx readiness-audit@1 <your-domain> --compare docs/readiness-status.md` against production to see what changed, regenerate the status page, and commit. The required count can grow as items start to apply (publishing a skills index makes S1 apply), so compare item by item, not just the totals.
+4. **Verify and ship:** build and test, and score the local build before you deploy: `npx readiness-audit@2 <your-domain> --base http://localhost:<port>`. After the deploy, run `npx readiness-audit@2 <your-domain> --compare docs/readiness-status.md` against production to see what changed, regenerate the status page, and commit. The required count can grow as items start to apply (publishing a skills index makes S1 apply), so compare item by item, not just the totals.
 
 5. **Ask the owner before publishing anything:** npm, the MCP Registry, Smithery, ClawHub, DNS, CDN settings, database migrations. Each is public or hard to undo. On ClawHub, publish each skill only from the account that owns it: publishing another account's slug has gotten accounts banned.
 

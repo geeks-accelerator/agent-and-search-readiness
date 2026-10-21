@@ -184,6 +184,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
         </llms.txt>; rel="describedby"; type="text/plain",
         </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"
   ```
+- A site with no API sends only `describedby`. A `service-desc` naming an OpenAPI document declares an API, and the scorecard then runs the API checks.
 - Give each link the type your server actually sends for that URL. llms.txt is usually `text/plain`.
 - `service-desc` is the machine-readable description (your OpenAPI). `service-doc` is the human documentation (RFC 8631). Five of the six projects fail D5: two send no `Link` header, one points `service-desc` at its skills index, and two are missing a rel.
 - Registered relations are `describedby`, `service-desc`, `service-doc`, `service-meta` and `api-catalog`. `ard`, `ai-catalog`, `llms-txt`, `mcp`, `agent-card` and `agent-skills` aren't registered: fine to use, but generic clients won't know them.
@@ -316,6 +317,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - Not indexable: test and template accounts ([recipe](docs/recipes.md#test-accounts-out-of-public-pages-t5-w3)), empty profiles, unfinished or ephemeral items, filtered views, sign-in pages, and thin pages (inbed: chats with fewer than five messages). They still render, with `noindex`, and stay out of the sitemap. Google has no `follow` rule (following links is the default), so don't count on `noindex` pages to get other pages found: link those from indexable pages (W7).
 - Missing items return a real 404 (or 410; Google treats them the same), never a 200 page that says "not found". Google calls that a soft 404 and drops it (achurch fixed a silent fallback). Empty filter combinations and page numbers past the end get a 404 too.
 - In Next.js, a `loading.tsx` above a detail page streams a 200 before `notFound()` runs, so every missing item answers 200. inbed moved its root `loading.tsx` off the profile routes, and missing profiles went from 200 to 404 in production. Keep loading boundaries off the routes of detail pages; the scorecard's missing-page probe shows whether it worked.
+- **Retiring a page:** a permanent server-side redirect (301 or 308) to the page that replaced it, or a 404 or 410 when nothing did. Take it out of the sitemap, llms.txt and every other discovery file in the same change, and keep a test that it still redirects. *Harm prevented:* links and rankings to the old URL lost to a 404, and discovery files that send agents through a redirect. The scorecard fails W3 for sitemap URLs that redirect and warns in D4 for llms.txt links that do.
 - The sitemap lists only indexable canonical URLs that answer 200 without a redirect. Google and Bing both ignore `changefreq` and `priority`, and both use `lastmod` only when it's the real date of a meaningful change (D2). Bing asks for ISO 8601 with a time. Leave `lastmod` off where it would churn: drifts omits it on profiles, whose activity changes every few minutes.
 - **Done when** the scorecard passes W3.
 
@@ -323,6 +325,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - `Organization` (with your logo) and `WebSite` on the homepage, with stable `@id`s in one `@graph` (magnifica).
 - `BreadcrumbList` on pages below the top level.
 - One type per page that fits: `Article` or `TechArticle`, `ProfilePage`, `CollectionPage` or `ItemList`, `SoftwareApplication`. `datePublished` and `dateModified` on articles.
+- A date shown on the page matches the structured one: Google asks that visible and structured dates agree. Read both, and the sitemap's `lastmod`, from one source, and test that they agree.
 - **Honest types for agents.** schema.org has no type for AI agents. Google's `ProfilePage` requires `Person` or `Organization` and says to default to `Person` when an account's type is unknown, and schema.org's `Person` isn't limited to humans. So `Person` fits a profile the page clearly labels as an AI agent (inbed), and markup that implies a human doesn't. botsmatter uses `Thing` and gives up profile rich results. Either is honest; say on the page what the agent is.
 - **Don't chase retired rich results.** Google ended HowTo rich results in 2023, the sitelinks search box (`WebSite` with a `SearchAction`) in November 2024, and FAQ rich results for every site in May 2026. Leftover markup does no harm and does nothing in Google; Bing says structured data may help it ground answers. Keep `FAQPage` or `HowTo` only where the page really is one.
 - **Escape JSON-LD.** User content containing `<`, `>`, U+2028 or U+2029 can break out of the script tag (achurch, magnifica).
@@ -334,7 +337,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - A rendered 1200×630 card for every entity (all six do this), drawn only for pages that exist: achurch's card 404s wherever its page would. The alt text repeats the card's words.
 - Version the card URL (`/og/v1/`). Platforms cache images for weeks, and a new URL is the only reliable way to show a new design (achurch, botsmatter).
 - Set `twitter:card` explicitly: X doesn't infer the card type, and without it a link may get the small card. Leave `twitter:title`, `twitter:description` and `twitter:image` out unless they differ: X falls back to the page's `og:` tags, and a site-wide value overrides every page (magnifica).
-- **Every page's card shows its own title and description:** on X, `twitter:title` (else `og:title`) and the same for the description; on Facebook and LinkedIn, `og:title` and `og:description`. Put the homepage's copy on the homepage, and keep only shared fields in the root layout: the image, `twitter:card`, the site name. A framework that merges metadata shallowly, as Next.js does, gives a page that sets `openGraph` but not `twitter` the layout's whole Twitter block, and a page that sets neither the layout's whole card. In October 2026, pages at animalhouse and inbed shared on X as their homepage this way. The scorecard warns when a sampled page, shallow pages included, shows another page's text.
+- **Every page's card shows its own title and description:** on X, `twitter:title` (else `og:title`) and the same for the description; on Facebook and LinkedIn, `og:title` and `og:description`. Put the homepage's copy on the homepage, and keep only shared fields in the root layout: the image, `twitter:card`, the site name. A framework that merges metadata shallowly, as Next.js does, gives a page that sets `openGraph` but not `twitter` the layout's whole Twitter block, and a page that sets neither the layout's whole card. In October 2026, pages at animalhouse and inbed shared on X as their homepage this way. The scorecard fails W5 when a sampled page shows another page's text.
 - 1200×630 works for Meta, LinkedIn and X. X's large card needs a 2:1 image under 5 MB, and not SVG.
 - Don't customize Open Graph tags without the title and description too: search reads those (achurch).
 - **Done when** the scorecard passes W5.
@@ -344,6 +347,7 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - `html lang` on every page. Screen readers need it; Google detects language from the text and ignores the attribute.
 - Descriptive alt text on content images. Google calls alt text the most important image metadata; file names give it only light clues.
 - On generated entity pages, a unique narrative paragraph (botsmatter, animalhouse), and excerpts rather than full copies of text that has its own page, so the detail page ranks for its own words (botsmatter).
+- The scorecard reports the sampled pages' median HTML size, which is what an agent pays to read a page. It isn't scored: no T5 result yet shows that lighter pages help agents succeed. Compare it with your T5 results.
 - **Done when** the scorecard passes W6.
 
 **W7 Internal links** (checked in review).
@@ -394,6 +398,9 @@ The test is whether most of the six projects should do it. These came from one o
 - **`changefreq` and `priority` in the sitemap** (achurch): Google and Bing ignore both.
 - **Question-shaped headings written for AI** (magnifica): Google's May 2026 guide for AI features says chunking or rewriting content for AI doesn't help. Write headings for people.
 - **A meta keywords tag** (achurch's batch rewrote one): Google and Bing ignore it.
+- **In-page anchors that resolve** (a `#section` link to a missing id): cheap to test, but a broken anchor still lands on the right page, so the harm is small.
+- **Versioned favicon links and a mark legible at 16 px:** D3 already asks for a favicon set; legibility is a design call.
+- **Prerendering, view transitions and theme switches:** they make a site feel modern, and neither search nor agents read them.
 - **A brand name another site owns** (achurch competes with an "Achurch" consultancy): real, but particular to one name. Check your own brand query in Search Console.
 
 ---
@@ -622,6 +629,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - No CDN plan is needed: a `.md` route and a few lines of middleware do it ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)). Cloudflare's Markdown for Agents feature (Pro and up) converts pages for you, but it's optional.
 - Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
 - Next.js drops a `Vary` set in middleware, proxy or `next.config` on App Router pages, static or dynamic, while it keeps the other headers (tested on 14.2 and 16.3). So `Accept` has to reach the HTML from the edge (a CDN response header rule), or decline that half in writing. Send it from the markdown route yourself (animalhouse.ai).
+- A page's markdown copy has the page's sections. The homepage's can be llms.txt instead. *Harm prevented:* agents reading the markdown get a different site than people do. The scorecard compares the headings of one page llms.txt links, when that page serves markdown, and a guard test can compare them all (§11).
 - Make links absolute, and link back to the HTML page as canonical.
 - Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
 - Negotiate in front of prerendered pages too, or they ignore it (magnifica).
@@ -661,13 +669,14 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - Logs that outlive a deploy. Logs written inside the container vanish with it: after one deploy, drifts had five minutes of history. Keep them on a volume, ship them out, or use the platform's own HTTP logs.
 - **T2 Attribution and one come-back measure** (required; per-agent tracking may be declined). Record `source` plus User-Agent per entry point, and judge entry points by who comes back, not just who signs up. A come-back measure is the share of agents who return to the core action a day or more after their first success: at animalhouse, the share of adoptions that get care again 24 hours or more after hatching (about 12%). An aggregate measure works for projects that rule out per-agent analytics.
 - **T3 Reviews** (required):
-  - A monthly log review, paged so no window is truncated (platform log commands often return only the newest window): requested well-known paths, 404s, refusals, crawler user agents.
+  - A monthly log review, paged so no window is truncated (platform log commands often return only the newest window): requested well-known paths, 404s, refusals, crawler user agents. `readiness-audit --logs <file>` counts the discovery requests in an exported log by client family.
+  - **Classify traffic before counting it.** Set known junk crawlers aside first, and trust a crawler's name only where the operator verifies it. Count a browser, headless or unidentified client as an agent only when something backs it up, such as the same address calling the API: agent tools often send a browser's user agent (§2), so their user agent alone proves nothing either way. *Harm prevented:* readiness decisions made on noise.
   - After each deploy, run the scorecard, lint the OpenAPI spec, and diff generated files against the previous production output. About 24 hours later, review the logs and database query performance.
 - **T5 The agent usability test** (required).
   - **Why:** it's the only check that measures what the whole standard is for, and without it the scorecard becomes the target.
   - **How:** give a fresh agent nothing but your domain and a goal: your core loop, as a person would ask for it ([examples](docs/usability-test.md#setup)). Choose a goal it can finish alone: one that needs someone else to act (a match on a dating site needs the other side to like back) can't be completed in one run. Run it headless, for example `claude -p` with only web fetch and curl allowed. Record whether it succeeds, how many calls it takes, every error it hits, and every point where it couldn't go on by itself (principle 10).
   - **When:** monthly, and after big API changes.
-  - **Report** its first-try success rate next to your score.
+  - **Report** its first-try success rate next to your score, with the model, turn limit, calls, stops and cost as fields (format: [examples/recorded.json](examples/recorded.json)).
   - **Rules:** run it only against your own site, with a test username so analytics filter it out.
   - **Keep test accounts out of public pages:** one helper recognizes the test prefix; leave those accounts out of public listings, search and counts; `noindex` their pages and keep them out of the sitemap; and guard it with a test ([recipe](docs/recipes.md#test-accounts-out-of-public-pages-t5-w3)).
   - **Keep the agent fresh,** with none of the operator's memory, settings or account details. drifts' test agent named itself after the operator, taken from its environment.
@@ -697,6 +706,9 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - **Schemas:** each card and index validates against its published schema (the skills index, the server card, the AI catalog).
 - **Generated files are current:** a `--check` mode for generated manifests and tool tables, run in CI (animalhouse, drifts, inbed).
 - **Skills only call tools that exist** (achurch.ai, drifts).
+- **The sitemap equals the route registry:** every routed, indexable page is in the sitemap, and every sitemap URL is routed. The scorecard samples the sitemap, so it can't see a page the sitemap leaves out ([recipe](docs/recipes.md#the-sitemap-equals-the-routes-t4-w3)).
+- **Markdown copies keep their pages' sections** (D8): each copy has the headings its HTML page has.
+- **Retired URLs keep redirecting** (W3).
 - **Every operation and field has a description** (animalhouse's `registry.test.ts`).
 - **One module for shared policy:** security headers and the `Link` value come from one module, with a drift test (magnifica).
 - **The scorecard in CI:** run it against the deployed site and fail on a required regression.
@@ -748,12 +760,12 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 Score each site monthly and after big releases, and keep the results where the project's agents can read them:
 
 ```
-npx readiness-audit@1 --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
+npx readiness-audit@2 --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
 The page lists every check for every site, the scores at each level, and each failure or warning with its reason. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there: the page shows only what anyone can see from outside.
 
-Score a local or preview build before you deploy: `npx readiness-audit@1 example.com --base http://localhost:3000` requests the site's URLs from the base and reports them under the domain, skipping DNS and host redirects. To see what changed since the last run, compare against that page: `npx readiness-audit@1 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
+Score a local or preview build before you deploy: `npx readiness-audit@2 example.com --base http://localhost:3000` requests the site's URLs from the base and reports them under the domain, skipping DNS and host redirects. To see what changed since the last run, compare against that page: `npx readiness-audit@2 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
 
 Read it with three caveats:
 - **It covers only what's visible from outside.** One of our projects scored well with no test suite, and the score couldn't show it.
@@ -773,7 +785,7 @@ Step-by-step instructions for a project's coding agent: [docs/adopting.md](docs/
   This project follows the Agent and Search Readiness Standard:
   https://github.com/geeks-accelerator/agent-and-search-readiness/blob/main/STANDARD.md
 
-  Score this site: `npx readiness-audit@1 <domain>`. Current status: docs/readiness-status.md
+  Score this site: `npx readiness-audit@2 <domain>`. Current status: docs/readiness-status.md
 
   Declined items (principle 9), with reasons:
   - (none yet)
@@ -781,7 +793,7 @@ Step-by-step instructions for a project's coding agent: [docs/adopting.md](docs/
   Project-specific notes:
   - (anything the standard doesn't cover)
   ```
-- **Pin the scorecard to a major version** (`npx readiness-audit@1 <domain>`), so a new release can't fail your build without warning.
+- **Pin the scorecard to a major version** (`npx readiness-audit@2 <domain>`), so a new release can't fail your build without warning.
 - **Run it in CI** after each deploy or on a schedule, and fail on a required regression. `examples/github-action.yml` is a starting point.
 - **Record declined items** (principle 9) in your CLAUDE.md or AGENTS.md, with the reason.
 - **Send improvements back** as an issue or pull request. When a project finds a better practice, it goes into the standard (principle 8).
@@ -919,6 +931,8 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Google AI features | Search Central | https://developers.google.com/search/docs/appearance/ai-features |
 | Google's AI optimization guide | Search Central, May 2026 | https://developers.google.com/search/docs/fundamentals/ai-optimization-guide |
 | Title links and snippets | Search Central | https://developers.google.com/search/docs/appearance/title-link · https://developers.google.com/search/docs/appearance/snippet |
+| Redirects | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/crawling-indexing/301-redirects |
+| Publication dates | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/appearance/publication-dates |
 | Canonicalization | Search Central | https://developers.google.com/search/docs/crawling-indexing/canonicalization |
 | Pagination and faceted navigation | Search Central | https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading · https://developers.google.com/crawling/docs/faceted-navigation |
 | Sitemaps (Google) | Search Central | https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap |

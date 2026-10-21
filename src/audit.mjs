@@ -10,12 +10,11 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, shallowPages, sharedCardText, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, shallowPages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '1.3.0';
+export const VERSION = '2.0.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
-const AI_BOTS = ['gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'claude-user', 'claude-searchbot', 'perplexitybot', 'perplexity-user', 'google-extended', 'applebot-extended'];
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
 const SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json';
 const CARD_SCHEMA = 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json';
@@ -106,7 +105,7 @@ export function makeGuard(domain) {
   return { siteHosts, isSafe };
 }
 
-export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = null } = {}) {
+export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
   const BASE = `https://${domain}`;
   const rand = Math.random().toString(36).slice(2, 10);
 
@@ -174,34 +173,37 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
   const wrong = (id, name, level, detail) => record(id, name, level, 'fail', detail); // present but false or invalid
   const skip = (id, name, level, detail) => record(id, name, level, 'skip', detail);
 
+  const D = DISCOVERY_FILES;
   const [home, homeMd, robots, sitemap, llms, llmsFull, openapi, apiIndex, apiCatalog, security, authMd, docsMd,
     agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, postRoot, legacyCard, wkCard] = await mapLimit([
     () => get('/'),
     () => get('/', { headers: { accept: 'text/markdown' } }),
-    () => get('/robots.txt'),
-    () => get('/sitemap.xml'),
-    () => get('/llms.txt'),
-    () => get('/llms-full.txt'),
-    () => get('/openapi.json'),
-    () => get('/api', { headers: { accept: 'application/json' } }),
-    () => get('/.well-known/api-catalog'),
-    () => get('/.well-known/security.txt'),
-    () => get('/auth.md'),
-    () => get('/docs/api.md'),
-    () => get('/.well-known/agent-card.json'),
-    () => get('/.well-known/ard.json'),
-    () => get('/.well-known/ai-catalog.json'),
-    () => get('/.well-known/agent-skills/index.json'),
-    () => get('/.well-known/oauth-protected-resource'),
-    () => get('/.well-known/oauth-authorization-server'),
-    () => get('/.well-known/ai-plugin.json'),
+    () => get(D.robots),
+    () => get(D.sitemap),
+    () => get(D.llms),
+    () => get(D.llmsFull),
+    () => get(D.openapi),
+    () => get(D.apiIndex, { headers: { accept: 'application/json' } }),
+    () => get(D.apiCatalog),
+    () => get(D.security),
+    () => get(D.authMd),
+    () => get(D.docsMd),
+    () => get(D.agentCard),
+    () => get(D.ard),
+    () => get(D.aiCatalog),
+    () => get(D.skills),
+    () => get(D.prm),
+    () => get(D.asMeta),
+    () => get(D.aiPlugin),
     () => get(`/.well-known/no-such-file-${rand}`),
     () => get(`/api/no-such-endpoint-${rand}`, { headers: { accept: 'application/json' } }),
     () => get('/', { method: 'POST', redirect: 'manual' }),
-    () => get('/.well-known/mcp.json'),
-    () => get('/.well-known/mcp/server-card.json'),
+    () => get(D.legacyCard),
+    () => get(D.wkCard),
   ], 6, (job) => job());
   const catalogEntries = [...(json(ard)?.entries ?? []), ...(json(aiCatalog)?.entries ?? [])];
+  const rels = linkRels(home.headers.get('link'));
+  const api = apiPresence({ openapiSpec: json(openapi), apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson: ok(apiCatalog) ? json(apiCatalog) : null, llmsText: ok(llms) ? llms.text : '' });
 
   // ---- D1 robots.txt (required) and D15 AI crawlers and Content-Signal (recommended) ----
   const groups = [];
@@ -259,36 +261,38 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
   }
 
   // ---- D4 llms.txt ----
+  let llmsAnswers = []; // D8 compares one of these pages with its markdown copy
   {
     const id = 'D4', name = 'llms.txt and llms-full.txt', level = 'required';
     // Agents follow the links in llms.txt, so a sample of the site's own links must answer 200.
     const links = ok(llms) ? llmsLinks(llms.text, `${BASE}/llms.txt`, siteHosts) : [];
     const sample = spread(links, 10);
     const answers = await mapLimit(sample, 4, async (u) => ({ u, r: await get(u) }));
+    llmsAnswers = answers;
     // Missing pages, server errors and no answer are broken. A 401, 403 or 405 is an endpoint that
     // exists but wants a key or another method, which is fine to list.
     const broken = answers.filter(({ r }) => !r.status || r.status === 404 || r.status === 410 || r.status >= 500).map(({ u, r }) => `${u.replace(BASE, '') || '/'} (${r.status || 'no answer'})`);
+    // A retired page redirects; the files that list it should name where it went.
+    const bare = (u) => u.replace(/[?#].*$/, '').replace(/\/+$/, '');
+    const redirected = answers.filter(({ u, r }) => r.status >= 200 && r.status < 300 && bare(r.url) !== bare(u)).map(({ u, r }) => `${u.replace(BASE, '') || '/'} → ${r.url.replace(BASE, '') || '/'}`);
+    const linkProblems = [];
+    if (broken.length) linkProblems.push(`broken links in llms.txt: ${broken.slice(0, 3).join(', ')}${broken.length > 3 ? `, +${broken.length - 3} more` : ''} (${broken.length} of ${sample.length} sampled)`);
+    if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${redirected.slice(0, 3).join(', ')}${redirected.length > 3 ? `, +${redirected.length - 3} more` : ''}`);
     const sizes = `llms.txt ${(llms.text.length / 1024).toFixed(1)} KB, llms-full.txt ${(llmsFull.text.length / 1024).toFixed(0)} KB`;
     if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
     else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
-    else if (broken.length) record(id, name, level, 'warn', `broken links in llms.txt: ${broken.slice(0, 3).join(', ')}${broken.length > 3 ? `, +${broken.length - 3} more` : ''} (${broken.length} of ${sample.length} sampled)${cached(llms)}`);
-    else pass(id, name, level, `${sizes}${sample.length ? `; ${sample.length} sampled link${sample.length === 1 ? '' : 's'} resolve` : ''}`);
+    else if (linkProblems.length) record(id, name, level, 'warn', `${linkProblems.join('; ')}${cached(llms)}`);
+    else pass(id, name, level, `${sizes}${sample.length ? `; ${sample.length} sampled link${sample.length === 1 ? '' : 's'} resolve without a redirect` : ''}`);
   }
 
   // ---- D5 Link headers (recommended; a wrong service-desc is a false declaration) ----
   {
     const id = 'D5', name = 'Link headers', level = 'recommended';
     const link = home.headers.get('link') ?? '';
-    const rels = new Map();
-    for (const part of link.split(/,(?=\s*<)/)) {
-      const href = part.match(/<([^>]+)>/)?.[1];
-      const relAttr = part.match(/rel="?([^";]+)"?/)?.[1];
-      if (href && relAttr) for (const r of relAttr.split(/\s+/)) rels.set(r, [...(rels.get(r) ?? []), href]);
-    }
     const desc = rels.get('service-desc') ?? [];
-    const missing = ['service-desc', 'describedby', ...(hasApi ? ['api-catalog'] : [])].filter((r) => !rels.has(r));
+    const missing = ['describedby', ...(api.present ? ['service-desc', 'api-catalog'] : [])].filter((r) => !rels.has(r)); // with no API, a service-desc would declare one
     if (!link) miss(id, name, level, 'no Link header on the homepage');
-    else if (hasApi && desc.length && !desc.some((h) => /openapi/i.test(h))) wrong(id, name, level, `service-desc points at ${desc.join(', ')}; it must name the OpenAPI document`);
+    else if (api.present && desc.length && !desc.some((h) => /openapi/i.test(h))) wrong(id, name, level, `service-desc points at ${desc.join(', ')}; it must name the OpenAPI document`);
     else if (missing.length) miss(id, name, level, `missing rel ${missing.join(', ')} (has ${[...rels.keys()].join(', ')})`);
     else pass(id, name, level, `rels: ${[...rels.keys()].join(', ')}`);
   }
@@ -320,10 +324,18 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
     const id = 'D8', name = 'Markdown for agents', level = 'next';
     const varyAccept = (r) => /(^|,)\s*accept\s*(,|$)/i.test(r.headers.get('vary') ?? '');
     const tokens = homeMd.headers.get('x-markdown-tokens');
+    // The homepage's markdown may be llms.txt, so compare a page llms.txt links instead, when it serves markdown.
+    const copy = { path: null, gone: [] };
+    const page = llmsAnswers.find(({ u, r }) => ok(r) && /text\/html/.test(r.type) && new URL(u).pathname !== '/');
+    if (page) {
+      const md = await get(page.u, { headers: { accept: 'text/markdown' } });
+      if (ok(md) && /text\/markdown/.test(md.type)) Object.assign(copy, { path: new URL(page.u).pathname, gone: missingSections(page.r.text, md.text) });
+    }
     if (!/text\/markdown/.test(homeMd.type)) miss(id, name, level, `Accept: text/markdown on / returns ${ct(homeMd)}`);
     else if (!varyAccept(homeMd) || !varyAccept(home)) miss(id, name, level, `Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
+    else if (copy.gone.length) miss(id, name, level, `the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${copy.gone.slice(0, 3).map((h) => `"${h}"`).join(', ')}${copy.gone.length > 3 ? `, +${copy.gone.length - 3} more` : ''}`);
     else if (!tokens) miss(id, name, level, 'markdown and Vary are right; add x-markdown-tokens');
-    else pass(id, name, level, `markdown with Vary: Accept on both, x-markdown-tokens ${tokens}`);
+    else pass(id, name, level, `markdown with Vary: Accept on both, x-markdown-tokens ${tokens}${copy.path ? `; ${copy.path}'s markdown copy has every section` : ''}`);
   }
 
   // ---- D9 AI catalog (ARD) ----
@@ -360,8 +372,8 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
   }
 
   // ---- A: API ----
-  if (!hasApi) {
-    for (const [id, name, level] of [['A1', 'OpenAPI 3.1', 'required'], ['A2', 'GET /api index', 'required'], ['A6', 'Errors that teach (401 without a key)', 'required'], ['A7', 'JSON catch-all for wrong API paths', 'required'], ['A3', 'API catalog (RFC 9727)', 'recommended'], ['A4', 'auth.md', 'recommended'], ['A5', 'API reference as markdown', 'recommended']]) skip(id, name, level, '--no-api');
+  if (!api.present) {
+    for (const [id, name, level] of [['A1', 'OpenAPI 3.1', 'required'], ['A2', 'GET /api index', 'required'], ['A6', 'Errors that teach (401 without a key)', 'required'], ['A7', 'JSON catch-all for wrong API paths', 'required'], ['A3', 'API catalog (RFC 9727)', 'recommended'], ['A4', 'auth.md', 'recommended'], ['A5', 'API reference as markdown', 'recommended']]) skip(id, name, level, 'no public API: /openapi.json and /api don\'t answer, and nothing declares one');
   } else {
     {
       const id = 'A1', name = 'OpenAPI 3.1', level = 'required';
@@ -491,7 +503,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
       const badName = read.map((f) => [f, skillNameProblem(f)]).filter(([, why]) => why).map(([f, why]) => `${f.label} (${why})`);
       const badDesc = read.filter((f) => !f.description || f.description.length > 1024).map((f) => f.label);
       const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map((f) => f.label);
-      const noApi = read.filter((f) => !/openapi|\/docs\/(api|mcp)|https?:\/\/[^\s)]+\/(api|mcp)\b/i.test(f.text)).map((f) => f.label);
+      const noApi = read.filter((f) => !API_LINK.test(f.text) && !MCP_LINK.test(f.text)).map((f) => f.label);
       const long = read.filter((f) => f.lines > 500).map((f) => `${f.label} (${f.lines} lines)`);
       const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
       const problems = [], warns = [];
@@ -610,6 +622,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
   }
 
   // ---- W: search, on a sample of sitemap pages ----
+  let htmlKb = null; // median HTML size of the sampled pages, reported, not scored
   {
     const locs = (xml) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1].replace(/&amp;/g, '&'));
     let urls = locs(sitemap.text);
@@ -620,9 +633,10 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
     }
     urls = [...new Set(urls)].filter((u) => { try { return siteHosts.has(new URL(u).hostname); } catch { return false; } });
     const norm = (u) => { try { const x = new URL(u); return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '') || '/'}${x.search}`; } catch { return u; } };
-    const pick = [];
-    const n = Math.min(20, urls.length);
-    for (let i = 0; i < n; i++) pick.push(urls[Math.floor((i * urls.length) / n)]);
+    // 20 pages spread across the sitemap, plus up to six shallow ones (/about, /privacy) the spread missed.
+    const spreadPick = spread(urls, 20);
+    const spreadSeen = new Set(spreadPick.map(norm));
+    const pick = [...spreadPick, ...shallowPages(urls.filter((u) => !spreadSeen.has(norm(u))), 6)];
     const decode = (t) => t.replace(/&amp;/g, '&').replace(/&#39;|&#x27;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
     const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)].map((m) => [m[1].toLowerCase(), m[3] ?? m[4]]));
     const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
@@ -636,12 +650,11 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
       ld.forEach(walk);
       return { ld, types };
     };
-    const readPage = async (u) => {
-      const r = await get(u, { headers: { accept: 'text/html' } });
+    const parsePage = (u, r) => {
       const h = r.text;
       const { ld, types } = jsonLd(h);
       return {
-        url: u, status: r.status, finalUrl: r.url, html: /text\/html/.test(r.type),
+        url: u, status: r.status, finalUrl: r.url, html: /text\/html/.test(r.type), bytes: Buffer.byteLength(h),
         title: decode(h.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''),
         description: decode(meta(h, 'name', 'description') ?? ''),
         robots: (meta(h, 'name', 'robots') ?? '').toLowerCase(),
@@ -655,11 +668,9 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
         ldBroken: ld.filter((x) => x === null).length, types,
       };
     };
-    const pages = await mapLimit(pick, 4, readPage);
-    // W5's shared card text also reads a few shallow pages (/, /about) the spread missed. Only W5's warning sees them.
-    const picked = new Set(pick.map(norm));
-    const extra = await mapLimit(shallowPages([BASE, ...urls].filter((u) => !picked.has(norm(u))), 6), 4, readPage);
+    const pages = await mapLimit(pick, 4, async (u) => parsePage(u, await get(u, { headers: { accept: 'text/html' } })));
     const ok200 = pages.filter((p) => p.status === 200 && p.html);
+    if (ok200.length) { const sizes = ok200.map((p) => p.bytes).sort((a, b) => a - b); htmlKb = Math.round(sizes[Math.floor(sizes.length / 2)] / 1024); }
     const short = (u) => u.replace(BASE, '') || '/';
     const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
     if (!pick.length) {
@@ -780,13 +791,14 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
         if (missingOg.length) problems.push(`missing og:title, og:description or og:image on ${list(missingOg)}`);
         if (noCard.length) problems.push(`no twitter:card on ${list(noCard)}`);
         if (badImages.length) problems.push(`share images that don't load: ${list(badImages)}`);
-        const cardPages = [...ok200, ...extra.filter((p) => p.status === 200 && p.html)].map((p) => ({ ...p, path: short(p.url) }));
+        // The homepage joins the comparison even when the sample missed it: a layout's default card is its text.
+        const cardPages = ok200.map((p) => ({ ...p, path: short(p.url) }));
+        if (home.status === 200 && !cardPages.some((p) => p.path === '/')) cardPages.push({ ...parsePage(BASE, home), path: '/' });
         const shared = sharedCardText(cardPages);
         const clip = (t) => (t.length > 50 ? `${t.slice(0, 50)}…` : t);
-        const warns = [];
-        if (shared.x.paths.length) warns.push(`X shows another page's title or description on ${list(shared.x.paths)} ("${clip(shared.x.text)}"; twitter:title and twitter:description, else og:)`);
-        if (shared.og.paths.length) warns.push(`Facebook and LinkedIn show another page's title or description on ${list(shared.og.paths)} ("${clip(shared.og.text)}")`);
-        if (undeclared.length) warns.push(`og:image size or alt text not declared on ${list(undeclared)}`);
+        if (shared.x.paths.length) problems.push(`X shows another page's title or description on ${list(shared.x.paths)} ("${clip(shared.x.text)}"; twitter:title and twitter:description, else og:)`);
+        if (shared.og.paths.length) problems.push(`Facebook and LinkedIn show another page's title or description on ${list(shared.og.paths)} ("${clip(shared.og.text)}")`);
+        const warns = undeclared.length ? [`og:image size or alt text not declared on ${list(undeclared)}`] : [];
         if (problems.length) miss(id, name, level, problems.concat(warns).join('; '));
         else if (warns.length) record(id, name, level, 'warn', warns.join('; '));
         else pass(id, name, level, `Open Graph and twitter:card on ${ok200.length} sampled pages; share images load`);
@@ -803,9 +815,10 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
         if (noLang.length) problems.push(`no html lang on ${list(noLang)}`);
         if (manyH1.length) warns.push(`several h1s on ${list(manyH1)}`);
         if (noAlt.length) warns.push(`images without alt on ${list(noAlt)}`);
-        if (problems.length) miss(id, name, level, problems.concat(warns).join('; '));
-        else if (warns.length) record(id, name, level, 'warn', warns.join('; '));
-        else pass(id, name, level, `one h1, html lang and alt text on ${ok200.length} sampled pages`);
+        const weight = `median HTML ${htmlKb} KB`;
+        if (problems.length) miss(id, name, level, problems.concat(warns, weight).join('; '));
+        else if (warns.length) record(id, name, level, 'warn', warns.concat(weight).join('; '));
+        else pass(id, name, level, `one h1, html lang and alt text on ${ok200.length} sampled pages; ${weight}`);
       }
     }
   }
@@ -861,7 +874,7 @@ export async function audit(domain, { hasApi = true, mcpPath = '/mcp', base = nu
   }
 
   results.sort((a, b) => LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level) || ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
-  return { domain, base: baseOrigin, version: VERSION, checked_at: new Date().toISOString(), hosted_mcp: hosted, results };
+  return { domain, base: baseOrigin, version: VERSION, checked_at: new Date().toISOString(), hosted_mcp: hosted, has_api: api.present, html_kb_median: htmlKb, results };
 }
 
 export function score(results, level) {
@@ -886,6 +899,7 @@ export function matrix(reports, command, recorded = {}) {
     `| | **Required passed** | | ${reports.map((rep) => `**${score(rep.results, 'required')}**`).join(' | ')} |`,
     `| | Recommended passed | | ${reports.map((rep) => score(rep.results, 'recommended')).join(' | ')} |`,
     `| | Next level passed | | ${reports.map((rep) => score(rep.results, 'next')).join(' | ')} |`,
+    `| | Public API | | ${reports.map((rep) => (rep.has_api ? 'yes' : 'no')).join(' | ')} |`,
     `| | Hosted MCP endpoint | | ${reports.map((rep) => (rep.hosted_mcp ? 'yes' : 'no')).join(' | ')} |`,
     ...[['T5', 'Agent usability test (recorded)'], ['T6', 'Search numbers (recorded)']].map(([id, label]) =>
       `| ${id} | ${label} | required | ${reports.map((rep) => formatRecorded(recorded[rep.domain]?.[id])).join(' | ')} |`),

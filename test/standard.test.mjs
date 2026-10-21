@@ -54,7 +54,7 @@ test('matrix renders one row per check and a score row', () => {
 
 test('matrix shows recorded T5 and T6 results, and says when they are missing', () => {
   const report = (domain) => ({ domain, hosted_mcp: false, results: [{ id: 'D1', name: 'robots.txt', level: 'required', status: 'pass', detail: 'x' }] });
-  const recorded = { 'a.example': { T5: { result: '4 of 5 first try', date: '2026-10-12' }, T6: { result: 'clicks 24 | CTR 3.8%' } } };
+  const recorded = { 'a.example': { T5: { attempts: 5, first_try: 4, date: '2026-10-12' }, T6: { result: 'clicks 24 | CTR 3.8%' } } };
   const md = matrix([report('a.example'), report('b.example')], 'cmd', recorded);
   assert.match(md, /^\| T5 \| Agent usability test \(recorded\) \| required \| 4 of 5 first try \(2026-10-12\) \| not recorded \|$/m);
   assert.match(md, /^\| T6 \| Search numbers \(recorded\) \| required \| clicks 24 \/ CTR 3\.8% \| not recorded \|$/m);
