@@ -25,6 +25,7 @@ test('parseLine reads combined log format and the hosts\' JSON exports', () => {
 });
 
 test('family puts each client in the first matching family', () => {
+  assert.equal(family('readiness-audit/2.0.0 (+https://github.com/geeks-accelerator/agent-and-search-readiness)'), 'This audit (readiness-audit)');
   assert.equal(family('AgenstryBot/1.0'), 'Agent and MCP directories');
   assert.equal(family('llms.txt-directory/1.0'), 'llms.txt directories');
   assert.equal(family('Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ChatGPT-User/1.0)'), 'Assistants fetching for a person');

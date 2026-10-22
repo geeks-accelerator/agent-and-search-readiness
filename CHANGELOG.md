@@ -9,18 +9,21 @@ From an adopting agent's review: a full score showed a site was set up correctly
 - **D2 reads the pages' dates on a sitemap index.** It counted the sub-sitemaps' own `lastmod` dates. The sitemap is now read once, every sub-sitemap up to ten (the W checks read three), and D2 and the W checks share it.
 - **W5 fails when a page's share card shows another page's text.** It reads what each platform shows: on X, `twitter:title` and `twitter:description`, falling back to `og:`; on Facebook and LinkedIn, `og:`. Shared text counts against a page when it isn't the page's own (its `<title>` or meta description), and belongs to the homepage when it matches no page. Next.js merges metadata shallowly, so a page that sets `openGraph` but not `twitter` keeps the root layout's Twitter title and description. animalhouse found this by sharing links, after W5 had passed; inbed.ai has it too.
 - **The API checks run whenever a site has or declares an API,** and `--no-api` is gone. They run when `/openapi.json` or `/api` answers, or a `service-desc` link, an API catalog or llms.txt names an API; a declared API that doesn't answer fails A1. A site with neither skips them, as a site with no hosted MCP endpoint skips the MCP checks. Drop `--no-api` from your commands; an unknown flag is ignored.
+- **Node 26 or later.** Node 20 reached end of life on 2026-04-30, and Node's 2026-10-21 security release fixed a Brotli decoder bug that could run code (CVE-2026-111497) and two TLS hostname bypasses. Use 26.12.1 or later. The CLI exits with a message on an older major, since `engines` only warns.
 
 **New warnings:**
 - **W6** warns when heading levels skip going down (an `h1` followed by an `h3`).
 - **D4** reports llms.txt links that redirect: link the destination.
 - **D5 asks for `service-desc` and `api-catalog` only on a site with an API.** A site with none needs only `describedby`, since a `service-desc` naming an OpenAPI document would declare one.
-- **D8** compares one page llms.txt links with its markdown copy, when the page serves one, and warns about sections the copy lacks. The homepage's markdown may be llms.txt, so it isn't compared.
+- **D8** compares the first page llms.txt links that serves markdown with its markdown copy, and warns about sections the copy lacks; the pass line says when no linked page serves markdown. The homepage's markdown may be llms.txt, so it isn't compared.
 
 **New:**
-- **`--logs <file>`** counts requests for the discovery files in an exported access log (combined log format, or JSON lines from Cloudflare Logpush, Vercel or Railway), by client family, and how many readers of each file also called the API. It prints counts, never addresses. Its paths are the audit's own list, so the two can't drift.
+- **`--logs <file>`** counts requests for the discovery files in an exported access log (combined log format, or JSON lines from Cloudflare Logpush, Vercel or Railway), by client family, and how many readers of each file also called the API. It prints counts, never addresses, and names the audit's own requests as their own family. Its paths are the audit's own list, so the two can't drift.
 - **The report and status page** say whether a site has a public API (`has_api`, a "Public API" row), and the report gives the sampled pages' median HTML size (`html_kb_median`, also in W6's line). Size isn't scored.
 - **T5 is recorded as fields:** `attempts`, `first_try`, `model`, `max_turns`, `median_calls`, `stops`, `cost_usd`, `date`. Convert a free-text T5 `result`.
 - **The T5 runner** ends with each attempt's `RESULT`, turns and cost, and a T5 entry to finish by hand. It also no longer exits silently before the first attempt: under `pipefail`, the random test name's `tr` ended on SIGPIPE, which stopped the script.
+- **Every request goes through `node:http(s)`, not `fetch`.** `fetch` decodes a Brotli body even when the request didn't ask for one, so an audited site could hand any body to the decoder. The audit asks for gzip or deflate, decodes those itself, and refuses any other encoding. W3 fails a sampled page whose body it refused, once, rather than every W check reporting its tags missing. One function now sends every request, with one user agent and one 15-second timeout.
+- **Releases run CI first,** on Node 26, and npm is pinned to major 12 in the publish step. Dependabot watches the GitHub Actions weekly.
 
 **STANDARD.md:**
 - W3: retiring a page (a permanent redirect to what replaced it, out of every discovery file in the same change, a test that it keeps redirecting).
@@ -35,6 +38,7 @@ From an adopting agent's review: a full score showed a site was set up correctly
 - W7: anchors say what the target is in searched-for words, not the brand name alone, with the brand in plain text beside them, and are true of the page they open. From animalhouse, where an agent linked sibling sites by brand name.
 - E6: link siblings in context with W7's anchors; never sitewide or on a partner page, which Google's spam policies call link schemes.
 - Considered and left out: in-page anchors, favicon versioning, prerendering and view transitions.
+- §12: the SDK v1 gotcha was re-checked on 1.32.1. §16: N6 cites the 2026-07-28 spec.
 - §16: Next.js metadata merging, Google on redirects and on publication dates.
 
 ## 1.2.1 (2026-10-06)

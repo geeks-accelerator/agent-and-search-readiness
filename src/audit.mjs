@@ -4,12 +4,11 @@
 // The standard and what each ID means: STANDARD.md in
 // https://github.com/geeks-accelerator/agent-and-search-readiness
 // Read-only: GETs plus a few POSTs that create nothing (an MCP initialize, server/discover and
-// tools/list, an empty POST to /). Node 20+, no dependencies.
+// tools/list, an empty POST to /). Node 26 or later, no dependencies.
 
 import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
-import { request as httpRequest } from 'node:http';
-import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
+import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
 export const VERSION = '2.0.0';
@@ -121,37 +120,15 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     for (let hop = 0; ; hop++) {
       const target = toBase(url);
       if (target === url && !(await isSafe(url))) return { status: 0, headers: new Headers(), text: '', url, type: '', error: 'refused: not a public address' };
-      let res;
-      try {
-        res = await fetch(target, { method: m, body: b, redirect: 'manual', headers: { 'user-agent': UA, ...headers }, signal: AbortSignal.timeout(15000) });
-      } catch (e) {
-        return { status: 0, headers: new Headers(), text: '', url, type: '', error: e.message };
-      }
+      const res = await request(target, { method: m, body: b, headers, userAgent: UA });
       const loc = res.headers.get('location');
       if (redirect === 'follow' && res.status >= 300 && res.status < 400 && loc && hop < 5) {
-        try { await res.body?.cancel(); } catch { /* already closed */ }
         url = fromBase(new URL(loc, target).href);
         if (res.status !== 307 && res.status !== 308) { m = 'GET'; b = undefined; }
         continue;
       }
-      const text = await res.text().catch(() => '');
-      return { status: res.status, headers: res.headers, text, url, type: res.headers.get('content-type') ?? '' };
+      return { ...res, url, type: res.headers.get('content-type') ?? '' };
     }
-  }
-  // fetch() always sends an Accept header, so the "no Accept" MCP probe uses node:https.
-  function postNoAccept(path, payload) {
-    const target = new URL(toBase(BASE + path));
-    const send = target.protocol === 'http:' ? httpRequest : httpsRequest;
-    return new Promise((resolve) => {
-      const req = send(target, { method: 'POST', timeout: 15000, headers: { 'user-agent': UA, 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => {
-        let text = '';
-        res.on('data', (c) => { text += c; });
-        res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'] ?? '', text }));
-      });
-      req.on('error', () => resolve({ status: 0, type: '', text: '' }));
-      req.on('timeout', () => { req.destroy(); resolve({ status: 0, type: '', text: '' }); });
-      req.end(payload);
-    });
   }
   const json = (r) => { try { return JSON.parse(r.text); } catch { return null; } };
   const isJson = (r) => /json/.test(r.type) && json(r) !== null;
@@ -338,16 +315,16 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     const tokens = homeMd.headers.get('x-markdown-tokens');
     // The homepage's markdown may be llms.txt, so compare a page llms.txt links instead, when it serves markdown.
     const copy = { path: null, gone: [] };
-    const page = llmsAnswers.find(({ u, r }) => ok(r) && /text\/html/.test(r.type) && new URL(u).pathname !== '/');
-    if (page) {
-      const md = await get(page.u, { headers: { accept: 'text/markdown' } });
-      if (ok(md) && /text\/markdown/.test(md.type)) Object.assign(copy, { path: new URL(page.u).pathname, gone: missingSections(page.r.text, md.text) });
+    // The first linked page that serves markdown; pages that don't are fine (start with the homepage and docs).
+    for (const { u, r } of llmsAnswers.filter(({ u, r }) => ok(r) && /text\/html/.test(r.type) && new URL(u).pathname !== '/')) {
+      const md = await get(u, { headers: { accept: 'text/markdown' } });
+      if (ok(md) && /text\/markdown/.test(md.type)) { Object.assign(copy, { path: new URL(u).pathname, gone: missingSections(r.text, md.text) }); break; }
     }
     if (!/text\/markdown/.test(homeMd.type)) miss(id, name, level, `Accept: text/markdown on / returns ${ct(homeMd)}`);
     else if (!varyAccept(homeMd) || !varyAccept(home)) miss(id, name, level, `Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
     else if (copy.gone.length) miss(id, name, level, `the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${list(copy.gone.map((h) => `"${h}"`))}`);
     else if (!tokens) miss(id, name, level, 'markdown and Vary are right; add x-markdown-tokens');
-    else pass(id, name, level, `markdown with Vary: Accept on both, x-markdown-tokens ${tokens}${copy.path ? `; ${copy.path}'s markdown copy has every section` : ''}`);
+    else pass(id, name, level, `markdown with Vary: Accept on both, x-markdown-tokens ${tokens}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
   }
 
   // ---- D9 AI catalog (ARD) ----
@@ -571,7 +548,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         const id = 'M4', name = 'Hosted MCP edge', level = 'required';
         const variants = [['application/json, text/event-stream', probe]];
         for (const accept of ['application/json', '*/*']) variants.push([accept, await get(mcpPath, { method: 'POST', headers: { 'content-type': 'application/json', accept }, body: INIT })]);
-        variants.push(['(none)', await postNoAccept(mcpPath, INIT)]);
+        variants.push(['(none)', await get(mcpPath, { method: 'POST', headers: { 'content-type': 'application/json', accept: null }, body: INIT })]);
         const discover = await modern('server/discover', 2);
         const browser = await get(mcpPath, { headers: { accept: 'text/html' }, redirect: 'manual' });
         const aliases = await Promise.all(['/sse', '/api/mcp'].map((p) => get(p, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json' }, body: INIT })));
@@ -656,7 +633,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
       const h = r.text;
       const { ld, types } = jsonLd(h);
       return {
-        url: u, status: r.status, finalUrl: r.url, html: /text\/html/.test(r.type), bytes: Buffer.byteLength(h),
+        url: u, status: r.status, finalUrl: r.url, html: /text\/html/.test(r.type), bytes: Buffer.byteLength(h), error: r.error,
         title: decodeText(h.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''),
         description: decodeText(meta(h, 'name', 'description') ?? ''),
         robots: (meta(h, 'name', 'robots') ?? '').toLowerCase(),
@@ -671,7 +648,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
       };
     };
     const pages = await mapLimit(pick, 4, async (u) => parsePage(u, await get(u, { headers: { accept: 'text/html' } })));
-    const ok200 = pages.filter((p) => p.status === 200 && p.html);
+    // A body the audit refused (an encoding it doesn't decode) is reported once, in W3, not as missing tags everywhere.
+    const ok200 = pages.filter((p) => p.status === 200 && p.html && !p.error);
     if (ok200.length) { const sizes = ok200.map((p) => p.bytes).sort((a, b) => a - b); htmlKb = Math.round(sizes[Math.floor(sizes.length / 2)] / 1024); }
     const short = (u) => u.replace(BASE, '') || '/';
     if (!pick.length) {
@@ -710,9 +688,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
           let url = start;
           for (let n = 0; n < 5; n++) {
             if (new URL(url).origin === origin) return { n, end: url };
-            if (!(await isSafe(url))) return { n, end: url };
-            let r;
-            try { r = await fetch(url, { method: 'GET', redirect: 'manual', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(15000) }); } catch { return n === 0 ? null : { n, end: url }; }
+            const r = await get(url, { redirect: 'manual' }); // get() refuses an address that isn't public
+            if (!r.status) return n === 0 ? null : { n, end: url };
             const loc = r.headers.get('location');
             if (r.status < 300 || r.status >= 400 || !loc) return { n, end: url };
             url = new URL(loc, url).href;
@@ -752,6 +729,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         }
         const problems = [];
         if (broken.length) problems.push(`sitemap URLs that don't answer 200: ${list(broken)}`);
+        const unread = pages.filter((p) => p.status === 200 && p.error).map((p) => `${short(p.url)} (${p.error})`);
+        if (unread.length) problems.push(`pages the audit couldn't read: ${list(unread)}; send gzip or no encoding unless the request asks for another`);
         if (moved.length) problems.push(`sitemap URLs that redirect: ${list(moved)}`);
         if (noindex.length) problems.push(`sitemap URLs marked noindex: ${list(noindex)}`);
         if (soft.length) problems.push(`missing pages answer 200 instead of 404: ${list(soft)}`);

@@ -6,7 +6,8 @@ To switch a project over, give its coding agent one line:
 
 Everything below is for that agent. The lessons at the end come from the projects that switched over first.
 
-1. **Score the live site:** `npx readiness-audit@2 <your-domain>`. It's read-only; run it only against your own sites. Exit code 1 means a required check failed.
+1. **Score the live site:** `npx readiness-audit@2 <your-domain>`, on Node 26 or later. It's read-only; run it only against your own sites. Exit code 1 means a required check failed.
+   - **Moving from `readiness-audit@1`:** change the pin to `@2` everywhere (scripts, CI, your stub), and drop `--no-api`: the API checks now run only when the site has or declares an API. 2.0.0 reads every static page and three pages of each template, so expect new findings on pages like `/about` and `/privacy` that 1.x never sampled. The CHANGELOG lists every check that can newly fail.
 
 2. **Switch over the docs (one commit):**
    - Replace your repo's old agent-discovery or readiness playbook with the short pointer stub in [STANDARD.md §14](../STANDARD.md#14-adopting-the-standard-in-a-repo). Keep your project-specific notes there, including your T5 goal: the one task a fresh agent should manage on its own (examples in [usability-test.md](usability-test.md#setup)). Choose a goal the agent can finish alone, without another party having to act.
@@ -33,6 +34,8 @@ T5 (the agent usability test) and T6 (search numbers) are required, but they're 
 - Field descriptions that Zod emits inside `anyOf` count as missing (A1): call `.describe()` last, after `.nullable()`.
 - Skills: each SKILL.md's `name` must be its folder slug. Index the skills your site serves, not every ClawHub listing. Serve the files at `/.well-known/agent-skills/<name>/SKILL.md`, and compute the digest from the bytes you serve.
 
+- Share cards: in Next.js, a page that sets `openGraph` but not `twitter` keeps the root layout's Twitter title and description, so it shares on X as the homepage (W5). Put the homepage's copy on the homepage, and add a metadata test that walks every route (§11): the scorecard sees a sample, a test sees every page (animalhouse, inbed).
+- Links to sibling projects: the anchor says what the sibling is, in the words people search for, with the brand name beside it in plain text, and the link sits in context on one page, never in a sitewide footer (W7, E6).
 - Answer a failed key check with 401 only when the key is wrong: a rate limit is 429 and a database error is 503 (A9, A10). Otherwise agents with good keys register again.
 - Keep logs somewhere a deploy can't wipe them, or the monthly review (T3) has nothing to read.
 

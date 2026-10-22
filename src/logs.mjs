@@ -6,6 +6,7 @@ import { DISCOVERY_FILES, AI_BOTS } from './helpers.mjs';
 // Client families, checked in order: the first match wins. §2 of STANDARD.md describes each.
 // Directories come before the generic "bot" match, assistants before AI crawlers.
 export const FAMILIES = [
+  ['This audit (readiness-audit)', /^readiness-audit\//i],
   ['Agent and MCP directories', /agenstrybot|brickbluebot|agentprobe|mcpharbor|agenttrustbot|taifoonharvester|mcphub-probe|invokerankbot|proofbench|thepluginstorebot|protogrid-probe|glidemcpindex|agent-tools\.cloud/i],
   ['llms.txt directories', /llms\.?txt/i],
   ['Assistants fetching for a person', /chatgpt-user|claude-user|perplexity-user|meta-externalfetcher/i],

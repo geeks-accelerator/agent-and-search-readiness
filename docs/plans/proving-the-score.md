@@ -2,7 +2,7 @@
 
 Written 2026-10-21, from an adopting agent's review of the standard, and revised the same day after an audit of the code.
 
-**Status (2026-10-21):** steps 0, 2, 3, 5, 6 and 7's code and docs are done in 2.0.0, not yet committed or released. Still open: step 1's paid T5 runs (the runner and the record format are ready), step 4 (needs each project's logs), and telling each project's agent about its new failures.
+**Status (2026-10-21):** steps 0, 2, 3, 5, 6 and 7's code and docs are done and committed in 2.0.0, not yet released. Still open: step 1's paid T5 runs (the runner and the record format are ready), step 4 (needs each project's logs), and telling each project's agent about its new failures.
 
 ## The problem
 

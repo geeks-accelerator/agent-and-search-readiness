@@ -13,6 +13,13 @@ import { audit, matrix, score, LEVELS, REVIEW, VERSION } from '../src/audit.mjs'
 import { parsePrevious, compareResults, formatComparison } from '../src/helpers.mjs';
 import { logTally, formatLogs } from '../src/logs.mjs';
 
+// engines in package.json only warns, so say it plainly before anything fails oddly.
+const NODE_MAJOR = 26;
+if (Number(process.versions.node.split('.')[0]) < NODE_MAJOR) {
+  console.error(`readiness-audit needs Node ${NODE_MAJOR} or later, with current security releases (this is ${process.versions.node}).`);
+  process.exit(2);
+}
+
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 if (flag('--version') || flag('-v')) {

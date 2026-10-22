@@ -10,19 +10,25 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   publish:
+    needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # trusted publishing; only this job gets it
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           registry-url: https://registry.npmjs.org
-      - name: npm 11.5.1 or later (needed for trusted publishing)
-        run: npm install -g npm@latest
+      - name: npm 12 (trusted publishing needs 11.5.1 or later; a major pin, so a new major can't change publishing unannounced)
+        run: npm install -g npm@12
       - name: The release tag matches package.json
         run: |
           tag="${GITHUB_REF_NAME#v}"
@@ -31,5 +37,4 @@ jobs:
             echo "Release tag v$tag doesn't match package.json version $version"
             exit 1
           fi
-      - run: npm test
       - run: npm publish --access public

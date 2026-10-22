@@ -13,6 +13,17 @@ test('VERSION matches package.json', () => {
   assert.equal(VERSION, pkg.version);
 });
 
+test('the docs and the CLI name the Node version package.json requires', () => {
+  const floor = pkg.engines.node.match(/^>=(\d+)$/)?.[1];
+  assert.ok(floor, `engines.node should be ">=N", got ${pkg.engines.node}`);
+  for (const file of ['README.md', 'STANDARD.md', 'AGENTS.md']) {
+    const named = [...readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').matchAll(/Node (\d+) or later/g)].map((m) => m[1]);
+    assert.ok(named.length, `${file} names no Node version`);
+    assert.deepEqual([...new Set(named)], [floor], file);
+  }
+  assert.match(readFileSync(new URL('../bin/readiness-audit.mjs', import.meta.url), 'utf8'), new RegExp(`NODE_MAJOR = ${floor};`));
+});
+
 test('every check the scorecard runs is in the standard checklist', () => {
   const scored = new Set([
     ...[...source.matchAll(/const id = '([A-Z]\d+)'/g)].map((m) => m[1]),

@@ -5,7 +5,7 @@
 **Last verified:** 2026-10-05
 
 > **Start here**
-> 1. Score your site: `npx readiness-audit <domain>`. It needs Node 20 or later and no dependencies.
+> 1. Score your site: `npx readiness-audit <domain>`. It needs Node 26 or later, with current security releases, and no dependencies.
 > 2. Check [§3](#3-decide-what-applies) for the items that apply to your project.
 > 3. Fix required failures first. Each line the scorecard prints names an ID and the reason.
 > 4. Then the recommended items. Build a next-level item when your own traffic shows the problem it solves.
@@ -745,7 +745,7 @@ A project with no test suite fails T4 however well it scores (botsmatter's own r
 - **Supabase silently caps a select at 1,000 rows,** and its client has no default timeout.
 - **Next.js 14.2's `force-dynamic` alone leaves fetches cached.** Use `revalidate = 0` for live pages (inbed). Route segment config can't be re-exported either.
 - **A timestamp set when a job notices an event records the detection, not the event** (animalhouse's `died_at`).
-- **MCP SDK v1 can't speak 2026-07-28.** SDK v2's legacy fallback speaks only SSE and is strict about `Accept` (M4).
+- **MCP SDK v1 can't speak 2026-07-28** (checked on 1.32.1, whose newest protocol is 2025-11-25). SDK v2's legacy fallback speaks only SSE and is strict about `Accept` (M4).
 - **A redirect from `/sse` doesn't make the old SSE transport work.** 2024-11-05 clients GET `/sse` and expect an `endpoint` event.
 - **Claude Code ignores AGENTS.md when CLAUDE.md exists,** unless CLAUDE.md imports it.
 - **An AID record and DNS-AID are different specs** at different names (`_agent` TXT and `_agents` SVCB). Scanners check only DNS-AID.
@@ -916,7 +916,7 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | auth.md | WorkOS open protocol, 2026 | https://workos.com/blog/agent-registration-with-auth-md |
 | MCP authorization | spec 2026-07-28 | https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery |
 | MCP Streamable HTTP | spec 2026-07-28 | https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http |
-| MCP structured tool output | spec 2025-06-18 | https://modelcontextprotocol.io/specification/2025-06-18/server/tools |
+| MCP structured tool output | spec 2026-07-28 | https://modelcontextprotocol.io/specification/2026-07-28/server/tools |
 | SDK v2 legacy clients | TypeScript SDK docs | https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/legacy-clients.md |
 | MCP server card | experimental extension, not accepted; location and media type in `docs/discovery.md` | https://github.com/modelcontextprotocol/ext-server-card |
 | AID | v2.1.1 | https://aid.agentcommunity.org/docs/specification |

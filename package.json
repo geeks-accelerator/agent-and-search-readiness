@@ -19,7 +19,7 @@
     "test": "node --test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=26"
   },
   "keywords": [
     "ai-agents",

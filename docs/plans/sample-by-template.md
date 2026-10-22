@@ -2,7 +2,7 @@
 
 Written 2026-10-21, from animalhouse's review of why the scorecard passed W1, W5 and W6 while its static pages had 11 descriptions over 160 characters, 14 pages showing the homepage's X card, and a homepage that jumped from h1 to h3. Revised the same day after an audit of the code. It ships inside 2.0.0.
 
-**Status (2026-10-21):** steps 1 to 5 and step 6's docs and real-site runs are done, not yet committed. Still open: publishing 2.0.0, and telling each project's agent to move to `@2` with its new failures.
+**Status (2026-10-21):** steps 1 to 5 and step 6's docs and real-site runs are done and committed in 2.0.0. Still open: publishing 2.0.0, and telling each project's agent to move to `@2` with its new failures.
 
 ## The problem
 

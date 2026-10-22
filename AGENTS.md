@@ -7,14 +7,15 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 - `STANDARD.md`: the standard. Every item has an ID (D, W, A, M, S, E, T, N plus a number), a level, and a row in the checklist (§15).
 - `src/audit.mjs`: the checks, as a library (`audit`, `score`, `matrix`).
 - `src/helpers.mjs`: pure helpers the checks share, tested without a network. Internal: the package exports only `src/audit.mjs`.
+- `src/http.mjs`: `request()`, the audit's one HTTP request, on `node:http(s)`.
 - `src/logs.mjs`: `--logs`, which counts discovery requests in an exported access log. It reads the audit's own path list (`DISCOVERY_FILES`), so the two can't drift.
 - `bin/readiness-audit.mjs`: the command-line tool.
-- `test/`: guard tests. `npm test` runs them.
+- `test/`: guard tests, and an end-to-end test that audits a fixture site on localhost through `--base` (`test/fixture-site.mjs`). A new check or a changed one gets a page in the fixture and an assertion there. `npm test` runs them all, with no outside network.
 - `docs/adopting.md`: the switch-over steps a project's agent follows. `docs/usability-test.md`: the T5 procedure.
 
 ## Rules
 
-- **No dependencies.** Node 20 or later, built-ins only.
+- **No dependencies.** Node 26 or later, with current security releases, built-ins only. All HTTP goes through `request()` in `src/http.mjs`, never `fetch`: it refuses Brotli and other encodings it doesn't decode itself, so an audited site can't reach a decoder bug.
 - **Read-only.** A check may GET anything and may POST only requests that create nothing on the audited site (an MCP initialize, server/discover, tools/list, an empty POST to `/`). Never register, write or log in.
 - **Every check has an ID that exists in the STANDARD.md checklist.** The tests fail otherwise. A new check needs its item described in STANDARD.md first.
 - **An item belongs in the standard when most projects should do it,** and its level has a stated reason: working agents rely on it, it keeps declarations true, or it's baseline hygiene. A practice from one project goes in "Considered and left out", with the reason.
