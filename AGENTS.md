@@ -12,6 +12,7 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 - `bin/readiness-audit.mjs`: the command-line tool.
 - `test/`: guard tests, and an end-to-end test that audits a fixture site on localhost through `--base` (`test/fixture-site.mjs`). A new check or a changed one gets a page in the fixture and an assertion there. `npm test` runs them all, with no outside network.
 - `docs/adopting.md`: the switch-over steps a project's agent follows. `docs/usability-test.md`: the T5 procedure.
+- `.github/social-preview.png`: the repo's social preview (1280×640). GitHub has no API for it: after changing the file, upload it in Settings > General > Social preview. The repo's description, website and topics also live in GitHub's settings (`gh repo edit`); keep them in step with the README's opening and `package.json`'s description and keywords.
 
 ## Rules
 
