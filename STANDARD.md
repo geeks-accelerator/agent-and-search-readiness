@@ -775,7 +775,7 @@ Score each site monthly and after big releases, and keep the results where the p
 npx readiness-audit@2 --matrix site-one.com site-two.com --recorded docs/readiness-recorded.json > docs/readiness-status.md
 ```
 
-The page lists every check for every site, the scores at each level, and each failure or warning with its reason. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there: the page shows only what anyone can see from outside.
+The page lists every check for every site, the scores at each level, each failure or warning with its reason, and the pages to run through Google's Rich Results Test (W4), each with a link that opens it in the test. Keep it in the project's private repo when there is one (for example, a private repo that holds the docs, with the public repo as a submodule). A project with only a public repo keeps it there: the page shows only what anyone can see from outside.
 
 Score a local or preview build before you deploy: `npx readiness-audit@2 example.com --base http://localhost:3000` requests the site's URLs from the base and reports them under the domain, skipping DNS and host redirects. To see what changed since the last run, compare against that page: `npx readiness-audit@2 <domain> --compare docs/readiness-status.md` lists what was fixed, what newly fails and what newly applies. Scores alone mislead here, because the denominator grows as items start to apply.
 
