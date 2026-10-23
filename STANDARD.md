@@ -329,7 +329,9 @@ The evidence that this work pays: achurch.ai's August batch rewrote titles and s
 - **Honest types for agents.** schema.org has no type for AI agents. Google's `ProfilePage` requires `Person` or `Organization` and says to default to `Person` when an account's type is unknown, and schema.org's `Person` isn't limited to humans. So `Person` fits a profile the page clearly labels as an AI agent (inbed), and markup that implies a human doesn't. botsmatter uses `Thing` and gives up profile rich results. Either is honest; say on the page what the agent is.
 - **Don't chase retired rich results.** Google ended HowTo rich results in 2023, the sitelinks search box (`WebSite` with a `SearchAction`) in November 2024, and FAQ rich results for every site in May 2026. Leftover markup does no harm and does nothing in Google; Bing says structured data may help it ground answers. Keep `FAQPage` or `HowTo` only where the page really is one.
 - **Escape JSON-LD.** User content containing `<`, `>`, U+2028 or U+2029 can break out of the script tag (achurch, magnifica).
-- **Done when** the scorecard passes W4 and Google's Rich Results Test accepts a sample.
+- **Test in Google's tools, one page per kind of markup.** The scorecard checks that markup parses and has the expected types; Google's Rich Results Test checks each rich result's required properties. The scorecard lists the pages to test, each with a link that opens it in the test: the homepage, one page of each template with rich-result markup (pages from one template share it, and each template is its own code), and any other page that adds a rich-result feature. Retest after deploying a change to a template's markup. For types Google shows no rich result for, use the Schema Markup Validator. A valid result means a page is eligible, not that Google will show it.
+- **Search Console's rich result reports cover every indexed page,** one report per feature, with valid and invalid items. Check them in the monthly review (T6).
+- **Done when** the scorecard passes W4 and the Rich Results Test finds no errors on the pages the scorecard lists.
 
 **W5 Link previews.** *Why: a shared link is how many people, and some agents, first see a page.*
 - Open Graph (`og:type`, `og:url`, `og:title`, `og:description`, `og:image`) and `twitter:card` set to `summary_large_image` on every page.
@@ -693,6 +695,7 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
   - Verify the site in Google Search Console and Bing Webmaster Tools, and submit the sitemap to both.
   - Review them monthly: coverage (including "crawled, not indexed"), queries, clicks and click-through rate. Re-check about two weeks after an SEO change (inbed).
   - Record the numbers next to the score as fields, not prose, so months compare: the period, clicks, impressions, click-through rate, average position, pages indexed and not indexed, and "crawled, not indexed", for Google and Bing (format: [examples/recorded.json](examples/recorded.json)). They're the outcome the W items are for.
+  - Check the rich result reports: invalid items first, since a critical issue keeps an item out of rich results (W4). The URL Inspection API returns the same findings for one URL (`richResultsResult`), for scripts with the owner's access.
   - Record the top queries with the page each lands on (`queries`), and ask in the review whether each page answers its query in its title, `h1` and opening text. animalhouse's homepage ranked for "tamagotchi ai" without those words on the page. It isn't scored: the data is entered by hand, and matching query words against a title invites keyword stuffing.
   - It takes a person, or a browser session, with access to Search Console and Bing Webmaster Tools. There's no unattended way to read them.
   - In analytics, watch referrals from AI answer engines (chatgpt.com, perplexity.ai, copilot.microsoft.com, gemini.google.com, claude.ai).
@@ -833,7 +836,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | W1 | Titles and descriptions: one helper, unique, searched-for words, 140 to 160 character descriptions | R | traffic | score |
 | W2 | Self-referencing canonicals, one host in one redirect | R | discovery | score |
 | W3 | One indexability rule; sitemap of 200 canonical URLs; real 404s | R | discovery, honesty | score |
-| W4 | True structured data: Organization and WebSite, breadcrumbs, honest types, escaped | R | honesty | score |
+| W4 | True structured data: Organization and WebSite, breadcrumbs, honest types, escaped, tested in Google's Rich Results Test | R | honesty | score, review |
 | W5 | Link previews: Open Graph, `twitter:card`, each page's own card text, declared images, versioned cards | R | discovery | score |
 | W6 | One h1, `html lang`, alt text, unique paragraph on generated pages | R | discovery | score |
 | W7 | Internal links with descriptive, searched-for anchors true to the target, no orphan pages | R | discovery | review |
@@ -941,6 +944,9 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Google's AI optimization guide | Search Central, May 2026 | https://developers.google.com/search/docs/fundamentals/ai-optimization-guide |
 | Title links and snippets | Search Central | https://developers.google.com/search/docs/appearance/title-link · https://developers.google.com/search/docs/appearance/snippet |
 | Redirects | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/crawling-indexing/301-redirects |
+| Google rich results | Search Central search gallery (updated 2026-10-16), read 2026-10-21 | https://developers.google.com/search/docs/appearance/structured-data/search-gallery |
+| Testing structured data | Search Central: the Rich Results Test and the Schema Markup Validator, read 2026-10-21 | https://developers.google.com/search/docs/appearance/structured-data · https://search.google.com/test/rich-results · https://validator.schema.org/ |
+| Rich result reports, URL Inspection API | Search Console Help and API reference, read 2026-10-21 | https://support.google.com/webmasters/answer/7552505 · https://developers.google.com/webmaster-tools/v1/urlInspection.index/UrlInspectionResult |
 | Headings | W3C WAI tutorial, read 2026-10-21 | https://www.w3.org/WAI/tutorials/page-structure/headings/ |
 | Publication dates | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/appearance/publication-dates |
 | Canonicalization | Search Central | https://developers.google.com/search/docs/crawling-indexing/canonicalization |

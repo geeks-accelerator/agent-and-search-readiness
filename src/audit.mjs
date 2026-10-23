@@ -9,9 +9,9 @@
 import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '2.0.0';
+export const VERSION = '2.1.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -22,6 +22,7 @@ const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5
 // Items the scorecard can't see from outside. Each project checks these in review and tests.
 export const REVIEW = [
   ['D3', 'pages read well: server-rendered, unique prose on generated pages (the scorecard checks W1 to W6 on a sample)'],
+  ['W4', 'Google\'s Rich Results Test on one page per kind of markup (listed below: the scorecard checks the markup parses, Google checks its required properties), after deploying a change to a template\'s markup; Search Console\'s rich result reports cover every page (T6)'],
   ['W7', 'internal links: entity names link to their pages, anchors that say what the target is (not the brand alone), no orphan pages; sibling links in context, never sitewide (E6)'],
   ['W8', 'Core Web Vitals on the main pages (Lighthouse or PageSpeed Insights)'],
   ['W9', 'listed in the directories your audience uses'],
@@ -611,11 +612,13 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
 
   // ---- W: search, on a sample of sitemap pages ----
   let htmlKb = null; // median HTML size of the sampled pages, reported, not scored
+  let richTest = []; // the pages to run through Google's Rich Results Test (W4, in review)
   {
     const urls = entries.map((e) => e.loc);
     const sample = samplePages(urls);
     const pick = sample.pages;
-    const templatePages = new Set(sample.templates.flatMap((t) => t.urls).map(norm));
+    const templateOf = new Map(sample.templates.flatMap((t) => t.urls.map((u) => [norm(u), t.pattern])));
+    const templatePages = new Set(templateOf.keys());
     const sampled = `${pick.length} sampled pages (${sample.static} static, ${sample.templates.length ? `${sample.templates.length} template${sample.templates.length === 1 ? '' : 's'}` : 'no templates'}${sample.skipped ? `; ${sample.skipped} static pages over the cap not read` : ''})`;
     const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)].map((m) => [m[1].toLowerCase(), m[3] ?? m[4]]));
     const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
@@ -746,6 +749,10 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         const deepPages = ok200.filter((p) => templatePages.has(norm(p.url)) && pathDepth(p.url) >= 2);
         const noCrumbs = deepPages.filter((p) => !p.types.includes('BreadcrumbList')).map((p) => short(p.url));
         const all = new Set(ok200.flatMap((p) => p.types));
+        // One page per kind of markup: the homepage, a page of each template, then the rest.
+        const homePage = ok200.find((p) => short(p.url) === '/') ?? (home.status === 200 ? { url: `${BASE}/`, types: homeTypes } : null);
+        const isTemplate = (p) => templatePages.has(norm(p.url));
+        richTest = richResultPages([homePage, ...ok200.filter(isTemplate).map((p) => ({ ...p, template: templateOf.get(norm(p.url)) })), ...ok200.filter((p) => !isTemplate(p))].filter(Boolean));
         const notes = [];
         if (all.has('FAQPage') || all.has('HowTo')) notes.push(`${['FAQPage', 'HowTo'].filter((t) => all.has(t)).join(' and ')} markup earns no rich results in Google anymore (HowTo ended in 2023, FAQ in May 2026); keep it only where the page really is one`);
         if (all.has('Person')) notes.push('Person markup found: fine on a profile the page labels as an AI agent; don\'t imply a human');
@@ -859,7 +866,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
   }
 
   results.sort((a, b) => LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level) || ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
-  return { domain, base: baseOrigin, version: VERSION, checked_at: new Date().toISOString(), hosted_mcp: hosted, has_api: api.present, html_kb_median: htmlKb, results };
+  return { domain, base: baseOrigin, version: VERSION, checked_at: new Date().toISOString(), hosted_mcp: hosted, has_api: api.present, html_kb_median: htmlKb, rich_results_test: richTest, results };
 }
 
 export function score(results, level) {
@@ -900,5 +907,10 @@ export function matrix(reports, command, recorded = {}) {
     out.push('');
   }
   out.push('## Checked in review and tests, not scored', '', ...REVIEW.map(([id, what]) => `- **${id}**: ${what}`), '');
+  const rich = reports.filter((rep) => rep.rich_results_test?.length);
+  if (rich.length) {
+    out.push('## Pages for Google\'s Rich Results Test (W4)', '', 'One page per kind of markup. Pages built from one template share it, so one tests them all.', '');
+    for (const rep of rich) out.push(`**${rep.domain}**`, '', ...rep.rich_results_test.map((p) => `- [${p.url}](${p.test}): ${p.features.join(', ')}`), '');
+  }
   return out.join('\n');
 }

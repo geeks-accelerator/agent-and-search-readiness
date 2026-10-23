@@ -115,7 +115,10 @@ if (flag('--matrix')) {
     console.log(`\nScore on ${rep.checked_at.slice(0, 10)}: required ${score(rep.results, 'required')}, recommended ${score(rep.results, 'recommended')}, next level ${score(rep.results, 'next')}`);
     if (changes) console.log(`\n${formatComparison(changes, since).join('\n')}`);
     console.log('\nNot scored, so check these yourself:');
-    for (const [id, what] of REVIEW) console.log(`  ${id.padEnd(6)} ${what}`);
+    for (const [id, what] of REVIEW) {
+      console.log(`  ${id.padEnd(6)} ${what}`);
+      if (id === 'W4') for (const p of rep.rich_results_test ?? []) console.log(`         ${p.url} (${p.features.join(', ')})\n           ${p.test}`);
+    }
   }
   process.exitCode = rep.results.some((r) => r.level === 'required' && r.status === 'fail') ? 1 : 0;
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0 (2026-10-23)
+
+From a project's agent that checked pages in Google's Rich Results Test by hand. The standard asked for it ("accepts a sample") without saying which pages, and the scorecard never mentioned it. No scoring changes.
+
+- **The scorecard lists the pages to run through Google's Rich Results Test,** each with a link that opens it in the test: the homepage, one page of each template with rich-result markup, and any other page that adds a rich-result feature. Pages from one template share their markup, so one tests them all. The CLI prints them under W4 in "check these yourself", the JSON report has `rich_results_test`, and the status page has a section for them. The rich-result types are those in Google's search gallery (updated 2026-10-16).
+- **STANDARD.md:** W4 says which pages to test and when (after a change to a template's markup), when to use the Schema Markup Validator instead, and that valid means eligible, not shown. Its done-when is no errors on the listed pages. T6's monthly review checks Search Console's rich result reports, which cover every indexed page. §16 cites the search gallery, both testing tools, the reports and the URL Inspection API.
+
 ## 2.0.0 (2026-10-21)
 
 From an adopting agent's review: a full score showed a site was set up correctly, not that agents did better on it, and the default run graded content sites on an API they don't have. This release makes the score fit the site, checks more of what agents and link previews actually read, and gives T5 and the traffic numbers a recorded form. Pin `readiness-audit@2`.

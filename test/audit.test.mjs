@@ -38,6 +38,10 @@ test('the audit reports the fixture site\'s deliberate problems, and passes the 
   assert.equal(rep.hosted_mcp, false);
   for (const id of ['A1', 'A2', 'M1', 'M4', 'D10']) assert.equal(status(id), 'skip', id);
 
+  // Google's Rich Results Test: the homepage, and one page of the template.
+  assert.deepEqual(rep.rich_results_test.map((p) => [new URL(p.url).pathname.replace(/item-\d+$/, 'item-N'), p.features.join('+')]), [['/', 'Organization'], ['/items/item-N', 'Breadcrumb+Organization']]);
+  assert.match(rep.rich_results_test[0].test, /^https:\/\/search\.google\.com\/test\/rich-results\?url=https%3A%2F%2Ffixture\.example%2F$/);
+
   // --logs reads what the audit just requested, and names it.
   const tally = logTally();
   site.log.forEach((l) => tally.add(l));

@@ -2,7 +2,7 @@
 
 Written 2026-10-21, after Node's security release that day, from an audit of every version the repo names. Revised the same day after an audit of the code, and set to Node 26 only at the user's direction.
 
-**Status (2026-10-21):** steps 1 to 4, 6 and 7 are done and committed in 2.0.0; the localhost pass became `test/audit.test.mjs`. Open: step 5's Next.js 16.4 and zod-to-openapi v9 re-checks (they need animalhouse's and drifts' agents), and upgrading this machine to Node 26.12.1, which step 7's test run wanted. It ships inside 2.0.0, which is committed and not yet published.
+**Status (2026-10-21):** steps 1 to 4, 6 and 7 are done and committed in 2.0.0; the localhost pass became `test/audit.test.mjs`. Open: step 5's Next.js 16.4 and zod-to-openapi v9 re-checks (they need animalhouse's and drifts' agents). This machine runs Node 26.12.1 (upgraded 2026-10-22), and the tests pass on it. It ships inside 2.0.0, which is committed and not yet published.
 
 ## What the audit found
 

@@ -68,6 +68,44 @@ export function headingSkips(hs) {
   return skips;
 }
 
+/**
+ * schema.org types that can earn a Google rich result, by the feature Google's search gallery
+ * names (read 2026-10-21; the gallery was updated 2026-10-16). FAQ and HowTo aren't there anymore.
+ */
+export const GOOGLE_RICH_RESULTS = {
+  Article: ['Article', 'NewsArticle', 'BlogPosting'], Breadcrumb: ['BreadcrumbList'], 'Course list': ['Course'], Dataset: ['Dataset'],
+  'Discussion forum': ['DiscussionForumPosting'], 'Education Q&A': ['Quiz'], 'Employer aggregate rating': ['EmployerAggregateRating'],
+  Event: ['Event'], 'Image metadata': ['ImageObject'], 'Job posting': ['JobPosting'], 'Local business': ['LocalBusiness'],
+  'Math solver': ['MathSolver'], Movie: ['Movie'], Organization: ['Organization'], Product: ['Product'], 'Profile page': ['ProfilePage'],
+  'Q&A': ['QAPage'], Recipe: ['Recipe'], 'Review snippet': ['Review', 'AggregateRating'],
+  'Software app': ['SoftwareApplication', 'MobileApplication', 'WebApplication', 'VideoGame'], 'Vacation rental': ['VacationRental'], Video: ['VideoObject'],
+};
+const RICH_FEATURE = new Map(Object.entries(GOOGLE_RICH_RESULTS).flatMap(([feature, types]) => types.map((t) => [t, feature])));
+
+/**
+ * The pages to run through Google's Rich Results Test. Pages from one template share their markup,
+ * so one page tests them all; each template is its own code, so each one with rich-result markup is
+ * listed once. Candidates come in order (the homepage, the template pages, then the rest), each
+ * { url, types, template } with template the page's template pattern, if any; a page outside a
+ * template is kept only when it adds a feature no kept page has.
+ * Returns up to `max` { url, features, test }.
+ */
+export function richResultPages(pages, max = 8) {
+  const seen = new Set();
+  const listedTemplates = new Set();
+  const out = [];
+  for (const p of pages) {
+    const features = [...new Set((p.types ?? []).map((t) => RICH_FEATURE.get(t)).filter(Boolean))].sort();
+    if (!features.length || listedTemplates.has(p.template)) continue;
+    if (!p.template && !features.some((f) => !seen.has(f))) continue;
+    if (p.template) listedTemplates.add(p.template);
+    features.forEach((f) => seen.add(f));
+    out.push({ url: p.url, features, test: `https://search.google.com/test/rich-results?url=${encodeURIComponent(p.url)}` });
+    if (out.length === max) break;
+  }
+  return out;
+}
+
 /** A sitemap's entries, urlset or index, as { loc, lastmod } (lastmod undefined when absent). */
 export function sitemapEntries(xml) {
   return [...String(xml ?? '').matchAll(/<(url|sitemap)>([\s\S]*?)<\/\1>/g)].map((m) => ({

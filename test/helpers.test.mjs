@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -282,4 +282,23 @@ test('headingSkips finds a level skipped going down, not going back up', () => {
   assert.deepEqual(headingSkips(hs(1, 2, 3, 2, 3)), []);
   assert.deepEqual(headingSkips(hs(1, 2, 4, 2, 2)), ['h2 to h4']);
   assert.deepEqual(headingSkips([]), []);
+});
+
+test('richResultPages lists every template with rich-result markup, and static pages that add a feature', () => {
+  const pages = richResultPages([
+    { url: 'https://e.com/', types: ['Organization', 'WebSite'] },
+    { url: 'https://e.com/items/a', types: ['BreadcrumbList', 'Organization'], template: '/items/*' },
+    { url: 'https://e.com/items/c', types: ['BreadcrumbList', 'Organization'], template: '/items/*' }, // same template: once
+    { url: 'https://e.com/people/b', types: ['BreadcrumbList', 'Organization'], template: '/people/*' }, // same features, other code: listed
+    { url: 'https://e.com/about', types: ['Organization'] }, // adds nothing
+    { url: 'https://e.com/guide', types: ['Article', 'BreadcrumbList', 'FAQPage'] }, // adds Article; FAQ earns nothing
+    { url: 'https://e.com/plain', types: ['WebPage'] }, // no rich-result type
+  ]);
+  assert.deepEqual(pages.map((p) => [p.url, p.features.join('+')]), [
+    ['https://e.com/', 'Organization'],
+    ['https://e.com/items/a', 'Breadcrumb+Organization'],
+    ['https://e.com/people/b', 'Breadcrumb+Organization'],
+    ['https://e.com/guide', 'Article+Breadcrumb'],
+  ]);
+  assert.equal(pages[3].test, 'https://search.google.com/test/rich-results?url=https%3A%2F%2Fe.com%2Fguide');
 });
