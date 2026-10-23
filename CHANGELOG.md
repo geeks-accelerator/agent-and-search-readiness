@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **README:** opens with what the audit checks, in the words people search for, a real run's output, "Why this one", and how it fits with other tools. Badges for the npm version and license.
+- **package.json:** the description leads with what the audit scores; keywords add aeo, ai-seo, ai-visibility, generative-engine-optimization, robots-txt, ai-crawlers, seo-audit, website-audit, agent-ready, llms-txt-validator and cli. Both reach npm with the next release.
+
 ## 2.1.0 (2026-10-23)
 
 From a project's agent that checked pages in Google's Rich Results Test by hand. The standard asked for it ("accepts a sample") without saying which pages, and the scorecard never mentioned it. No scoring changes.

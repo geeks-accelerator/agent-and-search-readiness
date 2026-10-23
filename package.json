@@ -1,7 +1,7 @@
 {
   "name": "readiness-audit",
   "version": "2.1.0",
-  "description": "Score a live site against the Agent and Search Readiness Standard: discovery files, search, API, MCP and skills, for AI agents and search engines.",
+  "description": "Score any site's readiness for AI agents and search (GEO, AEO, AI SEO): llms.txt, robots.txt AI crawler rules, structured data, link previews, OpenAPI, MCP, agent skills and A2A. Read-only CLI, no account.",
   "type": "module",
   "bin": {
     "readiness-audit": "bin/readiness-audit.mjs"
@@ -32,7 +32,18 @@
     "openapi",
     "structured-data",
     "audit",
-    "scorecard"
+    "scorecard",
+    "aeo",
+    "ai-seo",
+    "ai-visibility",
+    "generative-engine-optimization",
+    "robots-txt",
+    "ai-crawlers",
+    "seo-audit",
+    "website-audit",
+    "agent-ready",
+    "llms-txt-validator",
+    "cli"
   ],
   "license": "MIT",
   "repository": {

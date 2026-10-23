@@ -1,19 +1,53 @@
 # Agent and Search Readiness
 
 [![CI](https://github.com/geeks-accelerator/agent-and-search-readiness/actions/workflows/ci.yml/badge.svg)](https://github.com/geeks-accelerator/agent-and-search-readiness/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/readiness-audit)](https://www.npmjs.com/package/readiness-audit)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-A standard and a scorecard for making a site findable and usable by AI agents and by search engines.
-
-AI agents find a site through discovery files, MCP registries, skills and search. People find it through Google, Bing and the AI answer engines built on them. Both then need the first call to work, and a reason to come back. This repo holds:
-
-- **[STANDARD.md](STANDARD.md):** what to build, item by item, each with an ID, a level and the reason it's at that level. It covers discovery files, search, the API, MCP servers, skills, engagement, measurement and tests.
-- **`readiness-audit`:** a command-line scorecard that checks a live site against everything the standard can verify from outside, about 30 checks in one pass.
-
-## Score a site
+**Score any site's readiness for AI agents and search:** llms.txt, robots.txt rules for AI crawlers, the sitemap, structured data, link previews, OpenAPI, MCP servers, agent skills and the A2A path. A standard built from production request logs, and a command-line audit that checks a live site against it. Read-only, no account, no API key.
 
 ```
 npx readiness-audit example.com
 ```
+
+```
+Agent and search readiness: animalhouse.ai  (readiness-audit v2.1.0)
+
+Required
+  PASS  D1   robots.txt                           1 group with consistent rules, Sitemap listed
+  PASS  D4   llms.txt and llms-full.txt           llms.txt 16.2 KB, llms-full.txt 65 KB; 10 sampled links resolve
+  PASS  D12  No false declarations                no OAuth, A2A, plugin or server-card claims without the service
+  PASS  W1   Titles and descriptions              27 sampled pages (18 static, 3 templates), all with their own
+  WARN  W5   Link previews                        og:image size or alt text not declared on /hall, /about, +11 more
+  WARN  W6   Page structure                       heading levels skipped on /agent/[name] (h1 to h3)
+  PASS  A1   OpenAPI 3.1                          OpenAPI 3.1.0; all 17 operations and their request fields described
+  PASS  M4   Hosted MCP edge                      both eras, JSON for every Accept, browsers redirected
+  ...
+Score on 2026-10-23: required 17 of 19, recommended 10 of 10, next level 1 of 3
+```
+
+This repo holds:
+
+- **[STANDARD.md](STANDARD.md):** what to build, item by item, each with an ID, a level and the reason it's at that level. It covers discovery files, search (SEO, and the AI answer engines that GEO and AEO are about), the API, MCP servers, skills, engagement, measurement and tests.
+- **`readiness-audit`:** the scorecard. It checks a live site against everything the standard can verify from outside, about 30 checks in one pass, and lists what it can't see for you to review.
+
+## Why this one
+
+- **Built from evidence.** Each item says why it's there: production request logs (which agents fetch which files, and which ones go on to call the API), the specs, and Google's and Bing's own documentation, cited with dates. Items that only scanners look for are recommended at most.
+- **It checks that declarations are true.** An A2A card that isn't a valid A2A card fails D11; OAuth metadata with no token endpoint, or a catalog entry typed as something it isn't, fails D12. Declining an item in writing is fine; faking a pass isn't.
+- **It fits the site.** The API checks run only when a site has or declares an API, and the MCP checks only when one answers. Pages are sampled by type: every static page, and three pages of each generated template.
+- **Before and after you ship.** `--base http://localhost:3000` scores a local or preview build; `--compare` lists what changed since the last run; the exit code gates a deploy.
+- **The real test is an agent.** The standard's T5 gives a fresh agent only your domain and a goal, and records whether it succeeds. The scorecard is the setup for that, not the goal.
+
+## How it fits with other tools
+
+| Tool | What it does | Use it with this |
+|---|---|---|
+| [Is Your Site Agent-Ready?](https://isitagentready.com/) (Cloudflare) | A web scan for llms.txt, MCP, agent skills and other agent-facing standards | For a quick look in the browser. This runs in your terminal and CI, scores local builds, and checks search as well as agents |
+| llms.txt validators | Check that one file is well formed | This checks llms.txt and samples its links, as one of about 30 checks |
+| [specification.website](https://specification.website) | A sourced website specification: HTML, accessibility, security, SEO, agent readiness | A spec for the whole site, accessibility and security included. This one focuses on agents and search, and comes with a scorer |
+
+## Score a site
 
 It needs Node 26 or later, with current security releases, and has no dependencies. It only reads: GET requests, plus a few POSTs that create nothing (an MCP `initialize`, `server/discover` and `tools/list`, and an empty POST to `/`). It keeps to about six requests at a time, and it won't follow a link the site supplies (in its sitemap, share images, skills, catalog or DNS record) to a private or local address, at any redirect. It asks for gzip and decodes it itself; a body in an encoding it didn't ask for, such as Brotli, is reported rather than read, so a site can't reach a decoder bug on the machine running the audit. It prints a pass, warning or failure for each check, with the reason, and exits with code 1 when a required check fails, so it can gate a deploy.
 
