@@ -26,6 +26,8 @@ test('parseLine reads combined log format and the hosts\' JSON exports', () => {
 
 test('family puts each client in the first matching family', () => {
   assert.equal(family('readiness-audit/2.0.0 (+https://github.com/geeks-accelerator/agent-and-search-readiness)'), 'This audit (readiness-audit)');
+  assert.equal(family('agentprobe/0.1.0 (+https://agentprobe.org/methodology)'), 'Other audit tools');
+  assert.equal(family('Mozilla/5.0 (compatible; SemrushBot/7~bl)'), 'Other audit tools');
   assert.equal(family('AgenstryBot/1.0'), 'Agent and MCP directories');
   assert.equal(family('llms.txt-directory/1.0'), 'llms.txt directories');
   assert.equal(family('Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ChatGPT-User/1.0)'), 'Assistants fetching for a person');
@@ -66,4 +68,18 @@ test('logTally counts readers who also called the API, and unverified clients on
   const text = formatLogs(rep).join('\n');
   assert.match(text, /\/llms\.txt {2}2 requests, 2 addresses, 1 of them also called the API/);
   assert.doesNotMatch(text, /198\.51\.100/); // never prints addresses
+});
+
+test('logTally counts secret-file probes sent under crawler names', () => {
+  const t = logTally();
+  t.add(clf('198.51.100.9', 'GET', '/agents/.env', 404, 'Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)'));
+  t.add(clf('198.51.100.9', 'GET', '/.git/config', 404, 'Mozilla/5.0 (compatible; ClaudeBot/1.0)'));
+  t.add(clf('198.51.100.9', 'GET', '/@fs/etc/passwd', 404, 'Mozilla/5.0 (compatible; Googlebot/2.1)'));
+  t.add(clf('198.51.100.8', 'GET', '/llms.txt', 200, 'Mozilla/5.0 (compatible; GPTBot/1.2)')); // a real path: not counted
+  t.add(clf('198.51.100.7', 'GET', '/.env', 404, 'curl/8.4.0')); // a probe, but not under a crawler name
+  t.add(clf('198.51.100.8', 'GET', '/wp-content/themes/x.css', 200, 'Mozilla/5.0 (compatible; Googlebot/2.1)')); // a WordPress site's real asset
+  const rep = t.result();
+  assert.deepEqual(rep.crawler_names_on_secret_probes, { requests: 3, families: { 'AI crawlers': 2, 'Search crawlers': 1 } });
+  assert.match(formatLogs(rep).join('\n'), /3 requests under crawler names asked for secret files .*AI crawlers 2, Search crawlers 1/);
+  assert.match(formatLogs(logTally().result()).join('\n'), /No request under a crawler name asked for secret files/);
 });

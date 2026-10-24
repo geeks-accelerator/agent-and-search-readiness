@@ -7,6 +7,8 @@ import { DISCOVERY_FILES, AI_BOTS } from './helpers.mjs';
 // Directories come before the generic "bot" match, assistants before AI crawlers.
 export const FAMILIES = [
   ['This audit (readiness-audit)', /^readiness-audit\//i],
+  // Other audit tools read discovery files at least as often as agents do (docs/research/who-reads-discovery-files.md).
+  ['Other audit tools', /security-pranks-audit|isitagentready|agentprobe|agent-tools\.cloud|semrushbot|ahrefsbot|lumar|seojuice|sitebulb|screaming frog/i],
   ['Agent and MCP directories', /agenstrybot|brickbluebot|agentprobe|mcpharbor|agenttrustbot|taifoonharvester|mcphub-probe|invokerankbot|proofbench|thepluginstorebot|protogrid-probe|glidemcpindex|agent-tools\.cloud/i],
   ['llms.txt directories', /llms\.?txt/i],
   ['Assistants fetching for a person', /chatgpt-user|claude-user|perplexity-user|meta-externalfetcher/i],
@@ -25,6 +27,16 @@ export function family(ua) {
 
 // Families whose user agent can't show an agent: count them as one only when the same address called the API.
 const UNVERIFIED = new Set(['Browsers', 'Headless browsers', 'Unidentified', 'No user agent']);
+
+// Families named after a crawler or directory. A name is a claim: across one owner's 56 domains in a week of
+// October 2026, none of 448k probes came from a verified bot, and one scanner used about 20 AI-crawler names
+// (agent-security-pranks, "Bots in AI clothing"). A request under one of these names that asks for a secret file
+// isn't the crawler it names.
+const CRAWLER_FAMILIES = new Set(['Agent and MCP directories', 'llms.txt directories', 'Assistants fetching for a person', 'AI crawlers', 'Search crawlers']);
+// Paths that only secret hunters ask for, from that research's list, minus the WordPress and PHP paths a real
+// crawler fetches on a site that runs them.
+const SECRET_PROBE = /\.env\b|\/\.git\/|\/\.svn\/|\.gitconfig|\/@fs\/|__vite|wp-config|actuator|heapdump|\/\.aws\b|\/\.ssh\b|id_rsa|\.sql\b|\.ds_store|phpinfo|\/proc\/self\/environ/i;
+export const isSecretProbe = (path) => SECRET_PROBE.test(path);
 
 const COMBINED = /^(\S+) \S+ \S+ \[[^\]]*\] "(\S+) (\S+)[^"]*" (\d{3}) \S+(?: "[^"]*" "([^"]*)")?/;
 
@@ -76,6 +88,7 @@ export function logTally() {
   const readers = new Map(); // bucket -> Set(addr)
   const apiAddrs = new Set();
   const unverifiedAddrs = new Set();
+  const impostors = new Map(); // crawler family -> requests for secret files under its name
   return {
     add(line) {
       lines++;
@@ -84,6 +97,7 @@ export function logTally() {
       parsed++;
       const fam = family(r.ua);
       if (isApiCall(r)) { if (r.addr) apiAddrs.add(r.addr); if (UNVERIFIED.has(fam) && r.addr) unverifiedAddrs.add(r.addr); }
+      if (CRAWLER_FAMILIES.has(fam) && isSecretProbe(r.path)) impostors.set(fam, (impostors.get(fam) ?? 0) + 1);
       const b = bucket(r.path);
       if (!b) return;
       if (!hits.has(b)) hits.set(b, new Map());
@@ -101,14 +115,15 @@ export function logTally() {
           also_called_api: [...addrs].filter((a) => apiAddrs.has(a)).length,
         };
       }).sort((a, b) => b.requests - a.requests);
-      return { lines, parsed, api_addresses: apiAddrs.size, unverified_api_addresses: unverifiedAddrs.size, paths };
+      const crawlerNames = { requests: [...impostors.values()].reduce((a, b) => a + b, 0), families: Object.fromEntries([...impostors].sort((a, b) => b[1] - a[1])) };
+      return { lines, parsed, api_addresses: apiAddrs.size, unverified_api_addresses: unverifiedAddrs.size, crawler_names_on_secret_probes: crawlerNames, paths };
     },
   };
 }
 
 /** The report as text. */
 export function formatLogs(rep) {
-  const out = [`Read ${rep.parsed} of ${rep.lines} log lines (${rep.lines - rep.parsed} not understood)`, ''];
+  const out = [`Read ${rep.parsed} of ${rep.lines} log lines (${rep.lines - rep.parsed} not understood). Families are the names clients send, not verified.`, ''];
   if (!rep.paths.length) out.push('No requests for discovery files.');
   for (const p of rep.paths) {
     out.push(`${p.path}  ${p.requests} request${p.requests === 1 ? '' : 's'}${p.addresses ? `, ${p.addresses} address${p.addresses === 1 ? '' : 'es'}, ${p.also_called_api} of them also called the API` : ''}`);
@@ -116,5 +131,8 @@ export function formatLogs(rep) {
   }
   out.push('', `API calls came from ${rep.api_addresses} address${rep.api_addresses === 1 ? '' : 'es'}. ${rep.unverified_api_addresses} of them sent a browser, headless or missing user agent: count those as agents, since they called the API.`);
   out.push('Browsers, headless browsers and unidentified clients above count as agents only where they also called the API (STANDARD.md, T3).');
+  const named = rep.crawler_names_on_secret_probes;
+  if (named.requests) out.push('', `${named.requests} request${named.requests === 1 ? '' : 's'} under crawler names asked for secret files (.env, .git, keys, dumps): ${Object.entries(named.families).map(([f, n]) => `${f} ${n}`).join(', ')}. Real crawlers don't ask for these, so treat those names as claims: count a crawler by the CDN's verified flag, the vendor's published addresses or reverse DNS, not its name (T3).`);
+  else out.push('', 'No request under a crawler name asked for secret files.');
   return out;
 }

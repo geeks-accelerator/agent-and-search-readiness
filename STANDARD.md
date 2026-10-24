@@ -85,6 +85,8 @@ What it means:
 | AI search indexes | Meta-WebIndexer, OAI-SearchBot, Claude-SearchBot, PerplexityBot | ordinary pages, like any search crawler (§5) |
 
   So no single file reaches every agent. Directories want the well-known files, scripts want llms.txt and the API, tools want clean pages and docs, and search indexes want everything in §5.
+- **A crawler's name is a claim.** Across one owner's 56 domains on Cloudflare, October 16 to 23, 2026, none of about 448k vulnerability probes, most of them hunting `.env` files, came from a bot Cloudflare verified, and one scanner sent 308k requests under about 20 AI-crawler names, GPTBot and ClaudeBot among them ([Bots in AI clothing](https://github.com/geeks-accelerator/agent-security-pranks/blob/main/docs/research/bots-in-ai-clothing.md), from the sister project agent-security-pranks). The crawlers in the table above are the verified ones; a name in a log line alone doesn't show which requests are theirs (T3).
+- **A week across the whole network says the same, at scale.** [Who reads the discovery files](docs/research/who-reads-discovery-files.md) covers 56 domains, October 17 to 24, 2026. Verified AI crawlers read robots.txt (3,644 requests) and the sitemap (2,232, 40% of its reads) far more than llms.txt (49 of 1,406). Verified bots, nearly all Exa's search crawler, asked for markdown 12,601 times. Directories, not AI crawlers, read agent-card.json (2 of 991 requests were verified AI). On the 16 sites with an API, 13% of the addresses that read llms.txt, and 23% of those that read openapi.json, made a successful API call the same week.
 - **Check your own traffic before building a next-level item.** botsmatter looked: 2 of its 1,940 Grounds exactly repeat an earlier one, so retries aren't a problem there and N2 isn't worth building.
 
 ---
@@ -133,7 +135,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 **D3 Server-rendered pages.** Every page's content is in the HTML the server sends, not loaded later by script, with a real logo through the framework's icon convention and a favicon set (missing icons show up as steady 404s). *Why: crawlers, link-preview bots and agents that fetch pages read the HTML, and many don't run JavaScript.* inbed's chat pages once shipped none of their 48 messages in the HTML. The page-level details (titles, canonicals, structured data, previews, headings, links) are W1 to W7 in [§5](#5-search-people-and-answer-engines).
 
 **D4 `/llms.txt` and `/llms-full.txt`**: a short map (what this is, how to start, links to every other surface) and the whole corpus in one fetch. Generate both and test them against the sitemap: agents follow the links, so every one must open. The scorecard samples them and warns about missing pages (an endpoint that answers 401 for want of a key is fine; templates like `{id}` are skipped). The file is markdown; serve it as `text/markdown` or `text/plain`, and use the same type wherever you link it.
-- *Why required: traffic, and not from Google.* Google Search ignores llms.txt (it said so in June 2026), but plenty else reads it. At animalhouse, 79 requests in four and a half days came from:
+- *Why required: agents that go on to use the site read it, though the AI crawlers mostly don't.* Across 56 domains in a week of October 2026, verified AI crawlers made 49 of 1,406 llms.txt requests (GPTBot 5, ClaudeBot none) and read robots.txt and the sitemap instead. On the 16 sites with an API, 13% of the addresses that read llms.txt made a successful API call that week, 9% with a user agent that wasn't a browser's ([research](docs/research/who-reads-discovery-files.md)). Google Search ignores llms.txt (it said so in June 2026). At animalhouse, 79 requests in four and a half days came from:
   - agent directories (AgenstryBot, BrickBlueBot, agentprobe, MCPHarbor, AgentTrustBot);
   - llms.txt directories and validators;
   - SEO tools and Amazonbot;
@@ -147,6 +149,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 
 **D11 The A2A path is honest.** `/.well-known/agent-card.json` is the most-requested agent path. Serve a valid A2A v1.0 card only if you run an A2A endpoint ([Only if true](#only-if-true)). Otherwise answer a JSON 404 that names your MCP endpoint, OpenAPI document and llms.txt (achurch.ai). A custom document or an "A2A-shaped" card at that path fails. *Why: honesty. A2A §8.3.1 requires every declared interface to be real.*
 - **The cost:** directory crawlers drive most requests to this path, and some may stop listing a site that answers 404.
+- **The pre-1.0 path still gets asked.** Directories request `/.well-known/agent.json` too: 445 times at 19 sites in a week of October 2026, none of which serve it ([research](docs/research/who-reads-discovery-files.md)). Answer it the same way; D7's catch-all does.
 - **Roll it out on one site first.** inbed's agent said it would accept the risk. Watch for two weeks whether AgenstryBot and the other directories keep listing it, then change the rest.
 
 **D12 No false declarations.** *Why: honesty.*
@@ -189,7 +192,18 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - `service-desc` is the machine-readable description (your OpenAPI). `service-doc` is the human documentation (RFC 8631). Five of the six projects fail D5: two send no `Link` header, one points `service-desc` at its skills index, and two are missing a rel.
 - Registered relations are `describedby`, `service-desc`, `service-doc`, `service-meta` and `api-catalog`. `ard`, `ai-catalog`, `llms-txt`, `mcp`, `agent-card` and `agent-skills` aren't registered: fine to use, but generic clients won't know them.
 
-**D7 JSON 404s for unknown `/.well-known/*` paths, and a JSON 405 on `POST /`** naming the MCP endpoint and the API (achurch.ai, magnifica). An HTML 404 page is noise to an agent. *Why: cheap, and it helps the agents and crawlers that guess. No project passes all of it yet.* One catch-all route can answer D7 and D11 together ([recipe](docs/recipes.md#one-catch-all-for-unknown-well-known-paths-d7-d11)).
+**D7 JSON 404s for unknown `/.well-known/*` paths, including the pre-1.0 A2A path `/.well-known/agent.json`, and a JSON 405 on `POST /`** naming the MCP endpoint and the API (achurch.ai, magnifica), with an `Allow` header naming the methods that work (`Allow: GET, HEAD`): RFC 9110 requires it on every 405. An HTML 404 page is noise to an agent. *Why: cheap, and it helps the agents and crawlers that guess. No project passes all of it yet.* One catch-all route can answer D7 and D11 together ([recipe](docs/recipes.md#one-catch-all-for-unknown-well-known-paths-d7-d11)).
+
+**D8 Markdown for agents.** Markdown costs an agent fewer tokens than HTML, and agents ask for it with `Accept: text/markdown`. *Why recommended: traffic.* Across 56 domains in a week of October 2026, Cloudflare-verified bots asked for markdown 12,601 times on the sites that serve it, 92% of them Exa's search crawler and the rest ShapBot, Exa's user-triggered fetcher and KeenableBot ([research](docs/research/who-reads-discovery-files.md)). That's one search engine more than all the others, so check your own logs: the case rests on who asks you. Many hosts' logs don't keep the `Accept` header (Railway's HTTP logs and Cloudflare's Free-plan analytics don't); a markdown answer at a page URL shows that one was sent. To see it on your own site, log the header in middleware ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)).
+- Start with the homepage and your docs, not every page. `Accept: text/markdown` and a `.md` URL both return the page as markdown. animalhouse serves llms.txt as the homepage's markdown, and its API reference at `/docs/api.md`.
+- No CDN plan is needed: a `.md` route and a few lines of middleware do it ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)). Cloudflare's Markdown for Agents feature (Pro and up) converts pages for you, but it's optional.
+- Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
+- Next.js drops a `Vary` set in middleware, proxy or `next.config` on App Router pages, static or dynamic, while it keeps the other headers (tested on 14.2 and 16.3). So `Accept` has to reach the HTML from the edge (a CDN response header rule), or decline that half in writing. Send it from the markdown route yourself (animalhouse.ai).
+- A page's markdown copy has the page's sections. The homepage's can be llms.txt instead. *Harm prevented:* agents reading the markdown get a different site than people do. The scorecard compares the headings of one page llms.txt links, when that page serves markdown, and a guard test can compare them all (§11).
+- Make links absolute, and link back to the HTML page as canonical.
+- Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
+- Negotiate in front of prerendered pages too, or they ignore it (magnifica).
+- Whole-corpus indexes help: `/docs/index.md` and `/docs/index.json` (achurch.ai).
 
 **D9 An AI catalog (ARD)**
 - One list of what an agent can use here, such as the MCP server card, the OpenAPI document, skills and llms.txt, with identifiers in the form `urn:air:<publisher-domain>:<namespace>:<name>`.
@@ -632,17 +646,6 @@ The test is whether most of the six projects should do it. These came from one o
 
 Higher-value features that most of our projects don't have yet. Each one fixes a failure we've seen or can predict. Build one when your own traffic shows the problem: botsmatter checked its logs and found duplicate writes too rare to need N2.
 
-**D8 Markdown for agents.** Markdown costs an agent fewer tokens than HTML, and some agent fetchers ask for it with `Accept: text/markdown`. But none of our logs can show that traffic yet: Railway's HTTP logs, which several of our projects use, keep the user agent but not the `Accept` header. And a scanner check alone doesn't make an item recommended (principle 3). *Build it when* your logs show agents asking: log the `Accept` header in middleware to find out ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)).
-- Start with the homepage and your docs, not every page. `Accept: text/markdown` and a `.md` URL both return the page as markdown. animalhouse serves llms.txt as the homepage's markdown, and its API reference at `/docs/api.md`.
-- No CDN plan is needed: a `.md` route and a few lines of middleware do it ([recipe](docs/recipes.md#markdown-for-agents-without-a-cdn-plan-d8)). Cloudflare's Markdown for Agents feature (Pro and up) converts pages for you, but it's optional.
-- Send `Vary: Accept` on both representations (RFC 9110 §12.5.5). Otherwise a cache can hand HTML readers the markdown, or the reverse.
-- Next.js drops a `Vary` set in middleware, proxy or `next.config` on App Router pages, static or dynamic, while it keeps the other headers (tested on 14.2 and 16.3). So `Accept` has to reach the HTML from the edge (a CDN response header rule), or decline that half in writing. Send it from the markdown route yourself (animalhouse.ai).
-- A page's markdown copy has the page's sections. The homepage's can be llms.txt instead. *Harm prevented:* agents reading the markdown get a different site than people do. The scorecard compares the headings of one page llms.txt links, when that page serves markdown, and a guard test can compare them all (§11).
-- Make links absolute, and link back to the HTML page as canonical.
-- Add `x-markdown-tokens` so an agent can budget before reading. It's Cloudflare's header, with no spec behind it.
-- Negotiate in front of prerendered pages too, or they ignore it (magnifica).
-- Whole-corpus indexes help: `/docs/index.md` and `/docs/index.json` (achurch.ai).
-
 **N2 `Idempotency-Key` on writes** (IETF draft). Agents retry after timeouts, which can mean a duplicate registration or the same action taken twice. Accept the header on every POST, store the first response for 24 hours, and replay it for a repeated key. *Build it when* your logs show the same write repeated within minutes.
 
 **N3 Conditional requests on polled reads.** Send an `ETag` (or `Last-Modified`) and answer `If-None-Match` with a 304, so an unchanged check-in costs almost nothing on either side. *Build it when* scheduled polling is a large share of your traffic.
@@ -678,7 +681,8 @@ Higher-value features that most of our projects don't have yet. Each one fixes a
 - **T2 Attribution and one come-back measure** (required; per-agent tracking may be declined). Record `source` plus User-Agent per entry point, and judge entry points by who comes back, not just who signs up. A come-back measure is the share of agents who return to the core action a day or more after their first success: at animalhouse, the share of adoptions that get care again 24 hours or more after hatching (about 12%). An aggregate measure works for projects that rule out per-agent analytics.
 - **T3 Reviews** (required):
   - A monthly log review, paged so no window is truncated (platform log commands often return only the newest window): requested well-known paths, 404s, refusals, crawler user agents. `readiness-audit --logs <file>` counts the discovery requests in an exported log by client family.
-  - **Classify traffic before counting it.** Set known junk crawlers aside first, and trust a crawler's name only where the operator verifies it. Count a browser, headless or unidentified client as an agent only when something backs it up, such as the same address calling the API: agent tools often send a browser's user agent (§2), so their user agent alone proves nothing either way. *Harm prevented:* readiness decisions made on noise.
+  - **Count audits apart from agents.** Audit tools, this one included, are among the largest readers of discovery files: in a week across 56 domains, this audit and its sister made 3,564 discovery requests, more than all the week's llms.txt requests, and other audit tools were the largest readers of ard.json and ai-catalog.json ([research](docs/research/who-reads-discovery-files.md)). `--logs` names them as their own families. *Harm prevented:* mistaking scanners of your setup for agents that use it.
+  - **Classify traffic before counting it.** Set known junk crawlers aside first, and count a crawler by its verified status, not its name: the CDN's verified-bot flag, the vendor's published addresses, or reverse DNS. Scanners send crawler names: one sent 308k requests under about 20 AI-crawler names in a week (§2), and `--logs` counts requests under crawler names that asked for secret files, which no real crawler does. Count a browser, headless or unidentified client as an agent only when something backs it up, such as the same address calling the API: agent tools often send a browser's user agent (§2), so their user agent alone proves nothing either way. *Harm prevented:* readiness decisions made on noise.
   - After each deploy, run the scorecard, lint the OpenAPI spec, and diff generated files against the previous production output. About 24 hours later, review the logs and database query performance.
 - **T5 The agent usability test** (required).
   - **Why:** it's the only check that measures what the whole standard is for, and without it the scorecard becomes the target.
@@ -824,8 +828,8 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | D4 | llms.txt and llms-full.txt, generated, linked from skills and README | R | traffic | score, test |
 | D5 | `Link` headers: service-desc, service-doc, describedby, api-catalog | Rec | discovery | score |
 | D6 | security.txt with Expires once | R | hygiene | score |
-| D7 | JSON 404s for unknown well-known paths, JSON 405 on `POST /` | Rec | agents | score |
-| D8 | Markdown for agents with `Vary: Accept` and x-markdown-tokens, once traffic asks for it | N | agents | score |
+| D7 | JSON 404s for unknown well-known paths (`agent.json` included), JSON 405 with `Allow` on `POST /` | Rec | agents | score |
+| D8 | Markdown for agents with `Vary: Accept` and x-markdown-tokens | Rec | traffic | score |
 | D9 | AI catalog at ard.json and ai-catalog.json, with `rel` links | Rec | discovery | score |
 | D10 | One DNS AID record naming a service you run | Rec | discovery | score |
 | D11 | The A2A path: a valid card or a JSON 404 | R | honesty | score |
@@ -947,6 +951,8 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Google rich results | Search Central search gallery (updated 2026-10-16), read 2026-10-21 | https://developers.google.com/search/docs/appearance/structured-data/search-gallery |
 | Testing structured data | Search Central: the Rich Results Test and the Schema Markup Validator, read 2026-10-21 | https://developers.google.com/search/docs/appearance/structured-data · https://search.google.com/test/rich-results · https://validator.schema.org/ |
 | Rich result reports, URL Inspection API | Search Console Help and API reference, read 2026-10-21 | https://support.google.com/webmasters/answer/7552505 · https://developers.google.com/webmaster-tools/v1/urlInspection.index/UrlInspectionResult |
+| Crawler impersonation ("Bots in AI clothing") | agent-security-pranks research, 56 domains on Cloudflare, 2026-10-16 to 10-23, read 2026-10-24 | https://github.com/geeks-accelerator/agent-security-pranks/blob/main/docs/research/bots-in-ai-clothing.md |
+| 405 and `Allow` | RFC 9110 §15.5.6 | https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6 |
 | Headings | W3C WAI tutorial, read 2026-10-21 | https://www.w3.org/WAI/tutorials/page-structure/headings/ |
 | Publication dates | Search Central, read 2026-10-21 | https://developers.google.com/search/docs/appearance/publication-dates |
 | Canonicalization | Search Central | https://developers.google.com/search/docs/crawling-indexing/canonicalization |

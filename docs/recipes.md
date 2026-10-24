@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
 }
 ```
 
-Delete any static `public/.well-known/agent-card.json` first: a file in `public/` takes precedence over the route. The other half of D7, a JSON 405 for `POST /`, belongs in middleware (`proxy.ts` in Next.js 16).
+Delete any static `public/.well-known/agent-card.json` first: a file in `public/` takes precedence over the route. The other half of D7, a JSON 405 for `POST /`, belongs in middleware (`proxy.ts` in Next.js 16). Send `Allow: GET, HEAD` with it: HTTP requires the header on every 405, and it tells the client what does work.
 
 ## GET /api: JSON for agents, the docs for browsers (A2)
 

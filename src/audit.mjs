@@ -11,14 +11,14 @@ import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '2.1.0';
+export const VERSION = '2.2.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
 const SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json';
 const CARD_SCHEMA = 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json';
 export const LEVELS = ['required', 'recommended', 'next'];
-const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'A1', 'A2', 'A6', 'A7', 'M1', 'M4', 'S1', 'D5', 'D7', 'D9', 'D10', 'D15', 'A3', 'A4', 'A5', 'M5', 'S2', 'D8', 'N5', 'N6'];
+const ORDER = ['D1', 'D2', 'D4', 'D6', 'D11', 'D12', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'A1', 'A2', 'A6', 'A7', 'M1', 'M4', 'S1', 'D5', 'D7', 'D9', 'D10', 'D15', 'D8', 'A3', 'A4', 'A5', 'M5', 'S2', 'N5', 'N6'];
 // Items the scorecard can't see from outside. Each project checks these in review and tests.
 export const REVIEW = [
   ['D3', 'pages read well: server-rendered, unique prose on generated pages (the scorecard checks W1 to W6 on a sample)'],
@@ -268,7 +268,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     const linkProblems = [];
     if (broken.length) linkProblems.push(`broken links in llms.txt: ${list(broken)} (${broken.length} of ${sample.length} sampled)`);
     if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${list(redirected)}`);
-    const sizes = `llms.txt ${(llms.text.length / 1024).toFixed(1)} KB, llms-full.txt ${(llmsFull.text.length / 1024).toFixed(0)} KB`;
+    const kb = (r, digits) => (r.tooBig ? r.error.replace(/^.*?over /, 'over ') : `${(r.text.length / 1024).toFixed(digits)} KB`);
+    const sizes = `llms.txt ${kb(llms, 1)}, llms-full.txt ${kb(llmsFull, 0)}`;
     if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
     else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
     else if (linkProblems.length) record(id, name, level, 'warn', `${linkProblems.join('; ')}${cached(llms)}`);
@@ -305,13 +306,14 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     const problems = [];
     if (!isJson(wkMiss)) problems.push(`an unknown /.well-known path answers ${wkMiss.status} ${ct(wkMiss)}`);
     if (!(postRoot.status === 405 && isJson(postRoot))) problems.push(`POST / answers ${postRoot.status} ${ct(postRoot)}`);
+    else if (!postRoot.headers.get('allow')) problems.push('POST / answers a JSON 405 with no Allow header (RFC 9110 requires one, naming the methods that work)');
     if (problems.length) miss(id, name, level, problems.join('; '));
-    else pass(id, name, level, 'JSON 404 for unknown well-known paths, JSON 405 for POST /');
+    else pass(id, name, level, `JSON 404 for unknown well-known paths, JSON 405 for POST / (Allow: ${postRoot.headers.get('allow')})`);
   }
 
   // ---- D8 markdown for agents ----
   {
-    const id = 'D8', name = 'Markdown for agents', level = 'next';
+    const id = 'D8', name = 'Markdown for agents', level = 'recommended';
     const varyAccept = (r) => /(^|,)\s*accept\s*(,|$)/i.test(r.headers.get('vary') ?? '');
     const tokens = homeMd.headers.get('x-markdown-tokens');
     // The homepage's markdown may be llms.txt, so compare a page llms.txt links instead, when it serves markdown.

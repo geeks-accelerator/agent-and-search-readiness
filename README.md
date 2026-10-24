@@ -29,6 +29,7 @@ Score on 2026-10-23: required 17 of 19, recommended 10 of 10, next level 1 of 3
 This repo holds:
 
 - **[STANDARD.md](STANDARD.md):** what to build, item by item, each with an ID, a level and the reason it's at that level. It covers discovery files, search (SEO, and the AI answer engines that GEO and AEO are about), the API, MCP servers, skills, engagement, measurement and tests.
+- **[Who reads the discovery files](docs/research/who-reads-discovery-files.md):** a week of traffic across 56 domains on Cloudflare, with charts. The AI crawlers read robots.txt and the sitemap, not llms.txt; bots asked for markdown 12,601 times; directories read the agent cards; and on sites with an API, some readers of llms.txt and openapi.json went on to call it.
 - **`readiness-audit`:** the scorecard. It checks a live site against everything the standard can verify from outside, about 30 checks in one pass, and lists what it can't see for you to review.
 
 ## Why this one
@@ -45,6 +46,7 @@ This repo holds:
 |---|---|---|
 | [Is Your Site Agent-Ready?](https://isitagentready.com/) (Cloudflare) | A web scan for llms.txt, MCP, agent skills and other agent-facing standards | For a quick look in the browser. This runs in your terminal and CI, scores local builds, and checks search as well as agents |
 | llms.txt validators | Check that one file is well formed | This checks llms.txt and samples its links, as one of about 30 checks |
+| [security-pranks-audit](https://github.com/geeks-accelerator/agent-security-pranks) | The sister project: checks that a site answers `.env`, `.git` and other secret-hunting probes safely | This welcomes agents and checks what they read; that checks what the scanners get. Same shape, run both |
 | [specification.website](https://specification.website) | A sourced website specification: HTML, accessibility, security, SEO, agent readiness | A spec for the whole site, accessibility and security included. This one focuses on agents and search, and comes with a scorer |
 
 ## Score a site

@@ -1,0 +1,66 @@
+{
+  "source": "Cloudflare GraphQL Analytics, httpRequestsAdaptiveGroups, 56 zones on the Free plan, read through the dashboard session on 2026-10-24. Sampled estimates. Requests from readiness-audit and security-pranks-audit (3,564) are removed from every count below except totalRequests.",
+  "window": ["2026-10-17T00:00:00Z", "2026-10-24T00:00:00Z"],
+  "zones": 56,
+  "totalRequests": 5531261,
+  "verifiedTotals": { "(not verified)": 4679962, "Search Engine Crawler": 281228, "AI Crawler": 241520, "Search Engine Optimization": 141806, "Page Preview": 89387, "AI Search": 33635, "AI Assistant": 31235, "Security": 22753, "Monitoring & Analytics": 8408, "Feed Fetcher": 519, "Archiver": 376, "Academic Research": 218, "Webhooks": 74, "Advertising & Marketing": 63, "Other": 54, "Accessibility": 23 },
+  "ourAuditRequests": 3564,
+  "readerClasses": {
+    "verifiedAI": "Cloudflare-verified, category AI Crawler, AI Search or AI Assistant",
+    "verifiedOther": "Cloudflare-verified, any other category (search engines, SEO, page previews, security, academic research)",
+    "namedUnverified": "not verified, but the user agent names a well-known AI or search crawler",
+    "directories": "agent, MCP and llms.txt directories and monitors, by name",
+    "auditTools": "other site-audit tools by name (Semrush, Ahrefs, agentprobe, agent-tools.cloud, Lumar, SEOJuice)",
+    "scripts": "curl, python, node and similar, and coding agents by name",
+    "browsers": "a browser user agent with no bot words; people, agent tools that send a browser's user agent, and scanners pretending",
+    "other": "every other user agent, including empty ones"
+  },
+  "files": {
+    "/robots.txt": { "requests": 23671, "ok": 17515, "zonesAsked": 49, "zonesServing": 43, "readers": { "verifiedAI": 3644, "verifiedOther": 9121, "namedUnverified": 2058, "directories": 131, "auditTools": 328, "scripts": 715, "browsers": 4994, "other": 2680 } },
+    "/sitemap.xml": { "requests": 5622, "ok": 4028, "zonesAsked": 48, "zonesServing": 36, "readers": { "verifiedAI": 2232, "verifiedOther": 683, "namedUnverified": 222, "directories": 22, "auditTools": 2, "scripts": 1047, "browsers": 535, "other": 879 } },
+    "*.md": { "requests": 4135, "ok": 3571, "zonesAsked": 34, "zonesServing": 15, "readers": { "verifiedAI": 837, "verifiedOther": 1060, "namedUnverified": 344, "directories": 2, "auditTools": 2, "scripts": 90, "browsers": 1144, "other": 656 } },
+    "/llms.txt": { "requests": 1406, "ok": 1170, "zonesAsked": 49, "zonesServing": 24, "readers": { "verifiedAI": 49, "verifiedOther": 138, "namedUnverified": 12, "directories": 166, "auditTools": 298, "scripts": 111, "browsers": 446, "other": 186 } },
+    "/llms-full.txt": { "requests": 332, "ok": 321, "zonesAsked": 18, "zonesServing": 13, "readers": { "verifiedAI": 25, "verifiedOther": 23, "namedUnverified": 1, "directories": 72, "auditTools": 0, "scripts": 72, "browsers": 115, "other": 24 } },
+    "/openapi.json": { "requests": 624, "ok": 366, "zonesAsked": 31, "zonesServing": 10, "readers": { "verifiedAI": 16, "verifiedOther": 24, "namedUnverified": 12, "directories": 85, "auditTools": 2, "scripts": 66, "browsers": 302, "other": 117 } },
+    "/docs/api.md": { "requests": 109, "ok": 105, "zonesAsked": 6, "zonesServing": 6, "readers": { "verifiedAI": 8, "verifiedOther": 11, "namedUnverified": 6, "directories": 0, "auditTools": 0, "scripts": 19, "browsers": 48, "other": 17 } },
+    "/auth.md": { "requests": 30, "ok": 30, "zonesAsked": 6, "zonesServing": 6, "readers": { "verifiedAI": 2, "verifiedOther": 5, "namedUnverified": 1, "directories": 0, "auditTools": 0, "scripts": 14, "browsers": 7, "other": 1 } },
+    "/.well-known/agent-card.json": { "requests": 991, "ok": 388, "zonesAsked": 22, "zonesServing": 8, "readers": { "verifiedAI": 2, "verifiedOther": 45, "namedUnverified": 0, "directories": 391, "auditTools": 165, "scripts": 18, "browsers": 35, "other": 335 } },
+    "/.well-known/agent.json": { "requests": 445, "ok": 0, "zonesAsked": 19, "zonesServing": 0, "readers": { "verifiedAI": 0, "verifiedOther": 0, "namedUnverified": 0, "directories": 68, "auditTools": 79, "scripts": 0, "browsers": 3, "other": 295 } },
+    "/.well-known/mcp/server-card.json": { "requests": 131, "ok": 125, "zonesAsked": 4, "zonesServing": 3, "readers": { "verifiedAI": 4, "verifiedOther": 9, "namedUnverified": 0, "directories": 43, "auditTools": 7, "scripts": 55, "browsers": 3, "other": 10 } },
+    "/mcp/server-card": { "requests": 109, "ok": 108, "zonesAsked": 2, "zonesServing": 2, "readers": { "verifiedAI": 5, "verifiedOther": 21, "namedUnverified": 0, "directories": 31, "auditTools": 2, "scripts": 14, "browsers": 9, "other": 27 } },
+    "/.well-known/mcp.json": { "requests": 106, "ok": 48, "zonesAsked": 20, "zonesServing": 2, "readers": { "verifiedAI": 0, "verifiedOther": 10, "namedUnverified": 0, "directories": 65, "auditTools": 7, "scripts": 11, "browsers": 1, "other": 12 } },
+    "/.well-known/agent-skills/index.json": { "requests": 88, "ok": 87, "zonesAsked": 5, "zonesServing": 5, "readers": { "verifiedAI": 5, "verifiedOther": 3, "namedUnverified": 0, "directories": 1, "auditTools": 0, "scripts": 13, "browsers": 23, "other": 43 } },
+    "/.well-known/api-catalog": { "requests": 111, "ok": 108, "zonesAsked": 13, "zonesServing": 10, "readers": { "verifiedAI": 6, "verifiedOther": 11, "namedUnverified": 0, "directories": 0, "auditTools": 2, "scripts": 10, "browsers": 10, "other": 72 } },
+    "/.well-known/ai-catalog.json": { "requests": 174, "ok": 98, "zonesAsked": 16, "zonesServing": 5, "readers": { "verifiedAI": 3, "verifiedOther": 10, "namedUnverified": 6, "directories": 7, "auditTools": 68, "scripts": 11, "browsers": 49, "other": 20 } },
+    "/.well-known/ard.json": { "requests": 233, "ok": 167, "zonesAsked": 19, "zonesServing": 5, "readers": { "verifiedAI": 5, "verifiedOther": 8, "namedUnverified": 8, "directories": 45, "auditTools": 72, "scripts": 12, "browsers": 49, "other": 34 } },
+    "/.well-known/security.txt": { "requests": 480, "ok": 138, "zonesAsked": 46, "zonesServing": 14, "readers": { "verifiedAI": 1, "verifiedOther": 7, "namedUnverified": 12, "directories": 0, "auditTools": 0, "scripts": 48, "browsers": 214, "other": 198 } },
+    "/.well-known/ai-plugin.json": { "requests": 64, "ok": 1, "zonesAsked": 21, "zonesServing": 1, "readers": { "verifiedAI": 0, "verifiedOther": 0, "namedUnverified": 0, "directories": 51, "auditTools": 0, "scripts": 1, "browsers": 9, "other": 3 } },
+    "/.well-known/oauth-protected-resource": { "requests": 132, "ok": 54, "zonesAsked": 14, "zonesServing": 1, "readers": { "verifiedAI": 0, "verifiedOther": 0, "namedUnverified": 0, "directories": 32, "auditTools": 0, "scripts": 10, "browsers": 2, "other": 88 } },
+    "/mcp": { "requests": 29374, "ok": 27693, "zonesAsked": 20, "zonesServing": 2, "readers": { "verifiedAI": 19, "verifiedOther": 6248, "namedUnverified": 27, "directories": 12993, "auditTools": 136, "scripts": 4219, "browsers": 28, "other": 5704 } },
+    "/api": { "requests": 4761, "ok": 165, "zonesAsked": 44, "zonesServing": 11, "readers": { "verifiedAI": 10, "verifiedOther": 13, "namedUnverified": 3420, "directories": 0, "auditTools": 0, "scripts": 63, "browsers": 512, "other": 743 } }
+  },
+  "markdownNegotiated": {
+    "note": "Requests answered with text/markdown at a URL not ending in .md or .txt: the client asked for markdown with Accept. Cloudflare's Free plan doesn't expose the Accept header itself.",
+    "requests": 12601,
+    "byClass": { "verifiedOther": 11962, "verifiedAI": 480, "namedUnverified": 41, "browsers": 68, "scripts": 4, "other": 46 },
+    "verifiedBots": { "ExaSearchBot (Search Engine Crawler)": 11596, "ShapBot (AI Search)": 472, "Exa user fetches (Search Engine Crawler)": 359, "KeenableBot (Search Engine Crawler)": 42 },
+    "unverifiedNames": { "Claude-User": 35 }
+  },
+  "followThrough": {
+    "note": "On the 16 sites where some client got a 2xx from /api/* or /mcp: of the client addresses that read each file, how many made a successful API or MCP call in the same week. Audit tools are removed on both sides. Addresses were compared inside the browser and never recorded.",
+    "apiZones": 16,
+    "files": {
+      "/llms.txt": { "readers": 537, "calledApi": 70, "calledApiNonBrowser": 49 },
+      "/openapi.json": { "readers": 228, "calledApi": 52, "calledApiNonBrowser": 37 },
+      "/llms-full.txt": { "readers": 151, "calledApi": 16, "calledApiNonBrowser": 10 },
+      "/.well-known/agent-card.json": { "readers": 112, "calledApi": 31, "calledApiNonBrowser": 29 },
+      "/docs/api.md": { "readers": 90, "calledApi": 14, "calledApiNonBrowser": 10 },
+      "/.well-known/agent-skills/index.json": { "readers": 74, "calledApi": 10, "calledApiNonBrowser": 7 },
+      "/mcp/server-card": { "readers": 50, "calledApi": 20, "calledApiNonBrowser": 13 },
+      "/.well-known/mcp/server-card.json": { "readers": 24, "calledApi": 9, "calledApiNonBrowser": 8 },
+      "/auth.md": { "readers": 17, "calledApi": 7, "calledApiNonBrowser": 4 }
+    }
+  },
+  "verifiedReadersOfLlmsTxt": { "ExaSearchBot (Search Engine Crawler)": 48, "unnamed Mozilla-compatible (Search Engine Crawler)": 27, "PetalBot (AI Crawler)": 18, "Googlebot (Search Engine Crawler)": 14, "Amazonbot (AI Crawler)": 11, "AgenstryBot (Academic Research)": 10, "AhrefsBot (Search Engine Optimization)": 6, "GPTBot (AI Crawler)": 5, "curl (AI Assistant)": 4, "bingbot (Search Engine Crawler)": 2 },
+  "topClientsOfMcp": { "Microsoft Copilot Studio (verified, Security)": 6238, "mcpbeat liveness check": 5814, "node": 3454, "Clono": 1999, "mcp-health-probe": 1817, "rokmcp-collector": 1170, "AgentRankProbe": 1085 }
+}

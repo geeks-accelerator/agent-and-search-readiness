@@ -29,7 +29,7 @@ T5 (the agent usability test) and T6 (search numbers) are required, but they're 
 ## Lessons from the projects that switched over
 
 - Cloudflare caches robots.txt for about two hours. If a robots.txt fix still fails, check whether the scorecard says it read a cached copy, then wait or purge it. Its managed robots.txt feature adds a group of its own at the top: leave it off.
-- D8 (markdown for agents) is next level: build it once your logs show agents asking. On Next.js (tested on 14.2 and 16.3) the HTML can't carry `Vary: Accept` without a CDN rule.
+- D8 (markdown for agents) is recommended: AI search bots ask for markdown with `Accept: text/markdown` ([research](research/who-reads-discovery-files.md)). On Next.js (tested on 14.2 and 16.3) the HTML can't carry `Vary: Accept` without a CDN rule.
 - A sitemap URL that 404s (W3) can come from a lookup that assumes names are unique, or a LIKE match where `_` matches any character. In Next.js, a `loading.tsx` above a detail page makes missing pages answer 200 (inbed).
 - Field descriptions that Zod emits inside `anyOf` count as missing (A1): call `.describe()` last, after `.nullable()`.
 - Skills: each SKILL.md's `name` must be its folder slug. Index the skills your site serves, not every ClawHub listing. Serve the files at `/.well-known/agent-skills/<name>/SKILL.md`, and compute the digest from the bytes you serve.

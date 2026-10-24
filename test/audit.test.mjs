@@ -48,3 +48,12 @@ test('the audit reports the fixture site\'s deliberate problems, and passes the 
   const robots = tally.result().paths.find((p) => p.path === '/robots.txt');
   assert.deepEqual(Object.keys(robots.families), ['This audit (readiness-audit)']);
 });
+
+test('D7 warns about a 405 with no Allow header', async () => {
+  const site = await startFixture({ allow: null });
+  let rep;
+  try { rep = await audit('fixture.example', { base: site.base }); } finally { await site.close(); }
+  const d7 = rep.results.find((r) => r.id === 'D7');
+  assert.equal(d7.status, 'warn');
+  assert.match(d7.detail, /no Allow header/);
+});

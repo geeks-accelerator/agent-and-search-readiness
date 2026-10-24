@@ -64,3 +64,20 @@ test('request does not follow redirects, and ends a stalled answer', async () =>
   assert.equal(stalled.status, 0);
   assert.match(stalled.error, /no answer in 0.2 seconds/);
 });
+
+test('request caps a body, raw or decoded, and keeps the status', async () => {
+  const s = await serve({
+    '/big': [200, { 'content-type': 'text/plain' }, 'x'.repeat(5000)],
+    '/bomb': [200, { 'content-encoding': 'gzip' }, gzipSync(Buffer.alloc(20 * 1024 * 1024))], // about 20 KB that decodes to 20 MB
+    '/fits': [200, {}, 'x'.repeat(500)],
+  });
+  const big = await request(`${s.base}/big`, { maxBytes: 1024 });
+  const bomb = await request(`${s.base}/bomb`, { maxBytes: 1024 * 1024 });
+  const fits = await request(`${s.base}/fits`, { maxBytes: 1024 });
+  await s.close();
+  assert.deepEqual([big.status, big.tooBig, big.text], [200, true, '']);
+  assert.match(big.error, /^body over/);
+  assert.deepEqual([bomb.status, bomb.tooBig, bomb.text], [200, true, '']);
+  assert.match(bomb.error, /^gzip body decodes to over 1 MB$/);
+  assert.equal(fits.text.length, 500);
+});

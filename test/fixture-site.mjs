@@ -50,7 +50,7 @@ function send(req, res, status, headers, body) {
 }
 
 /** Starts the fixture on a free port: { base, log (lines), close }. */
-export async function startFixture() {
+export async function startFixture({ allow = 'GET, HEAD' } = {}) {
   const log = [];
   const srv = createServer((req, res) => {
   const path = new URL(req.url, 'http://x').pathname;
@@ -59,7 +59,7 @@ export async function startFixture() {
   const link = '</llms.txt>; rel="describedby"; type="text/plain"';
   const wantsMd = /text\/markdown/.test(req.headers.accept ?? '');
 
-  if (req.method === 'POST' && path === '/') return send(req, res, 405, { 'content-type': 'application/json' }, '{"error":"method_not_allowed","next_steps":["GET /llms.txt"]}');
+  if (req.method === 'POST' && path === '/') return send(req, res, 405, { 'content-type': 'application/json', ...(allow ? { allow } : {}) }, '{"error":"method_not_allowed","next_steps":["GET /llms.txt"]}');
   if (path === '/robots.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, ['User-agent: *', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '', ...['GPTBot', 'ClaudeBot', 'PerplexityBot'].flatMap((b) => [`User-agent: ${b}`, 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '']), `Sitemap: ${D}/sitemap.xml`].join('\n'));
   if (path === '/sitemap.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, `<?xml version="1.0"?><sitemapindex><sitemap><loc>${D}/sitemap-static.xml</loc><lastmod>2026-01-01</lastmod></sitemap><sitemap><loc>${D}/sitemap-items.xml</loc><lastmod>2026-01-01</lastmod></sitemap></sitemapindex>`);
   if (path === '/sitemap-static.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(staticPaths));

@@ -1,7 +1,17 @@
 # Changelog
 
-## Unreleased
+## 2.2.0 (2026-10-24)
 
+From a review of the sister project, [agent-security-pranks](https://github.com/geeks-accelerator/agent-security-pranks), and its research. Two new warnings (D7's `Allow`, and D8 at the recommended level), no new failures. A warning lowers the recommended score until fixed, but doesn't change the exit code.
+
+- **D7 warns about a 405 with no `Allow` header.** RFC 9110 requires it on every 405, and it tells a client what does work. All six sites the standard came from already send it.
+- **Response bodies are capped at 16 MB,** before and after decoding, so a site that answers with a gzip bomb or an endless stream can't exhaust the memory of the machine running the audit. Over the cap, the check sees the status and no body, as with a refused encoding, and D4 reports an oversized llms-full.txt by its size.
+- **`--logs` counts requests under crawler names that asked for secret files** (`.env`, `.git`, keys, dumps), per family, and says the families are the names clients send, not verified. The JSON report has `crawler_names_on_secret_probes`.
+- **D8 (markdown for agents) is recommended,** up from next level, so a site without it now warns at the recommended level and its recommended score can drop. The evidence: in a week across 56 domains, Cloudflare-verified bots asked for markdown 12,601 times on the sites that serve it, 92% of them Exa's search crawler.
+- **`--logs` names other audit tools** (Semrush, Ahrefs, agentprobe, agent-tools.cloud, Lumar, SEOJuice and the sister project's audit) as their own family.
+- **New research: [Who reads the discovery files](docs/research/who-reads-discovery-files.md),** a week across 56 domains on Cloudflare: who requested each discovery file, verified or not, which files sites are asked for without serving them, and how many readers went on to call the API. STANDARD.md §2 cites it; D4's reason now names who reads llms.txt; D7 and D11 cover the pre-1.0 path `/.well-known/agent.json`; T3 counts audits apart from agents.
+- **STANDARD.md:** §2 adds that a crawler's name is a claim: in a week across one owner's 56 domains, none of about 448k vulnerability probes came from a verified bot, and one scanner used about 20 AI-crawler names. T3 counts a crawler by its verified status. D7 asks for `Allow`. §16 cites the research and RFC 9110 §15.5.6. docs/recipes.md shows `Allow` on the 405.
+- **README:** a row for the sister project in "How it fits with other tools".
 - **README:** opens with what the audit checks, in the words people search for, a real run's output, "Why this one", and how it fits with other tools. Badges for the npm version and license.
 - **package.json:** the description leads with what the audit scores; keywords add aeo, ai-seo, ai-visibility, generative-engine-optimization, robots-txt, ai-crawlers, seo-audit, website-audit, agent-ready, llms-txt-validator and cli. Both reach npm with the next release.
 
