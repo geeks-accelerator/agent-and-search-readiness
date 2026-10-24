@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.1 (2026-10-24)
+
+Corrections after an outside review of 2.2.0 and its research. No new checks; D8 is easier to pass.
+
+- **D8 no longer requires `x-markdown-tokens`.** Cloudflare stopped sending the header on 2026-10-09, so a site using Cloudflare's own Markdown for Agents couldn't pass. It's optional, and shown when present.
+- **`--logs` counts only successful API answers** (a 2xx from `/api/*` or a POST to `/mcp`). A 404 or a 5xx no longer counts as a call. It no longer tells you to count browser, headless or unidentified addresses as agents because they called the API: a site's own pages call its API too. The JSON fields are `also_got_api_answer`, `api_answer_addresses` and `browser_like_api_answer_addresses`. agentprobe is counted once, as an audit tool.
+- **The research is corrected and reproducible.** [Who requests agent discovery files?](docs/research/who-reads-discovery-files.md) now says its window overlaps the sister study's for 161 of 168 hours; names Cloudflare's legacy AI categories, which leave out ExaSearchBot; calls the API measure same-week address overlap, not a sequence; says which sites were tested to show the markdown answers came from requests that asked; corrects three "mostly" claims; states Exa's 92% share of markdown requests; cites GoodBarber's earlier count and Mintlify's benchmark; and lists every correction. [method.md](docs/research/who-reads-discovery-files/method.md) publishes the queries and the classifier.
+- **STANDARD.md:** §2, D4, D8, D7, D11 and T3 use the corrected wording; D4 cites Mintlify's benchmark and D8 GoodBarber's logs; T3 says a successful API call doesn't make a client an agent; §16 cites both and the research.
+
 ## 2.2.0 (2026-10-24)
 
 From a review of the sister project, [agent-security-pranks](https://github.com/geeks-accelerator/agent-security-pranks), and its research. Two new warnings (D7's `Allow`, and D8 at the recommended level), no new failures. A warning lowers the recommended score until fixed, but doesn't change the exit code.

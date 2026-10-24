@@ -29,7 +29,7 @@ Score on 2026-10-23: required 17 of 19, recommended 10 of 10, next level 1 of 3
 This repo holds:
 
 - **[STANDARD.md](STANDARD.md):** what to build, item by item, each with an ID, a level and the reason it's at that level. It covers discovery files, search (SEO, and the AI answer engines that GEO and AEO are about), the API, MCP servers, skills, engagement, measurement and tests.
-- **[Who reads the discovery files](docs/research/who-reads-discovery-files.md):** a week of traffic across 56 domains on Cloudflare, with charts. The AI crawlers read robots.txt and the sitemap, not llms.txt; bots asked for markdown 12,601 times; directories read the agent cards; and on sites with an API, some readers of llms.txt and openapi.json went on to call it.
+- **[Who requests agent discovery files?](docs/research/who-reads-discovery-files.md):** a week of traffic across 56 domains on Cloudflare, with charts, its queries and its classifier. Bots in Cloudflare's AI categories requested robots.txt and the sitemap, not llms.txt; bots, mostly one search engine's, asked for markdown 12,601 times; directories and audit tools made most agent-card requests; and on sites with an API, some readers of llms.txt and openapi.json also got API answers the same week.
 - **`readiness-audit`:** the scorecard. It checks a live site against everything the standard can verify from outside, about 30 checks in one pass, and lists what it can't see for you to review.
 
 ## Why this one

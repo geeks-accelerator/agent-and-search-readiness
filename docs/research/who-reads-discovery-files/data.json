@@ -6,7 +6,7 @@
   "verifiedTotals": { "(not verified)": 4679962, "Search Engine Crawler": 281228, "AI Crawler": 241520, "Search Engine Optimization": 141806, "Page Preview": 89387, "AI Search": 33635, "AI Assistant": 31235, "Security": 22753, "Monitoring & Analytics": 8408, "Feed Fetcher": 519, "Archiver": 376, "Academic Research": 218, "Webhooks": 74, "Advertising & Marketing": 63, "Other": 54, "Accessibility": 23 },
   "ourAuditRequests": 3564,
   "readerClasses": {
-    "verifiedAI": "Cloudflare-verified, category AI Crawler, AI Search or AI Assistant",
+    "verifiedAI": "Cloudflare-verified, legacy category AI Crawler, AI Search or AI Assistant (Cloudflare files some AI search crawlers, ExaSearchBot among them, as Search Engine Crawler)",
     "verifiedOther": "Cloudflare-verified, any other category (search engines, SEO, page previews, security, academic research)",
     "namedUnverified": "not verified, but the user agent names a well-known AI or search crawler",
     "directories": "agent, MCP and llms.txt directories and monitors, by name",
@@ -47,7 +47,7 @@
     "unverifiedNames": { "Claude-User": 35 }
   },
   "followThrough": {
-    "note": "On the 16 sites where some client got a 2xx from /api/* or /mcp: of the client addresses that read each file, how many made a successful API or MCP call in the same week. Audit tools are removed on both sides. Addresses were compared inside the browser and never recorded.",
+    "note": "Same-week address overlap, not order. On each of the 16 sites where some client got a 2xx from /api/* or /mcp: the addresses that requested each file, and how many of them also got such a 2xx in the same week. Counts are per-site address sets, summed across sites. Audit tools are removed on both sides. Addresses were compared inside the browser and never recorded.",
     "apiZones": 16,
     "files": {
       "/llms.txt": { "readers": 537, "calledApi": 70, "calledApiNonBrowser": 49 },

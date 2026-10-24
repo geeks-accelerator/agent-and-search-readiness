@@ -52,21 +52,24 @@ test('bucket groups the discovery paths', () => {
   assert.equal(bucket('/api/pets'), null);
 });
 
-test('logTally counts readers who also called the API, and unverified clients only by the API', () => {
+test('logTally counts readers who also got a successful API answer, and only successful ones', () => {
   const t = logTally();
   t.add(clf('198.51.100.1', 'GET', '/llms.txt', 200, 'curl/8.4.0'));
   t.add(clf('198.51.100.1', 'POST', '/api/pets', 201, 'curl/8.4.0'));
   t.add(clf('198.51.100.2', 'GET', '/llms.txt', 200, 'AgenstryBot/1.0'));
   t.add(clf('198.51.100.3', 'GET', '/api/pets', 200, 'Mozilla/5.0 (Macintosh) Chrome/130.0'));
+  t.add(clf('198.51.100.2', 'GET', '/api/nope', 404, 'AgenstryBot/1.0')); // a miss, not a call
+  t.add(clf('198.51.100.4', 'GET', '/api/admin', 500, 'Mozilla/5.0 (Macintosh) Chrome/130.0')); // an error, not a call
   t.add('garbage');
   const rep = t.result();
-  assert.equal(rep.lines, 5);
-  assert.equal(rep.parsed, 4);
-  assert.deepEqual(rep.paths, [{ path: '/llms.txt', requests: 2, families: { Scripts: 1, 'Agent and MCP directories': 1 }, addresses: 2, also_called_api: 1 }]);
-  assert.equal(rep.api_addresses, 2);
-  assert.equal(rep.unverified_api_addresses, 1);
+  assert.equal(rep.lines, 7);
+  assert.equal(rep.parsed, 6);
+  assert.deepEqual(rep.paths, [{ path: '/llms.txt', requests: 2, families: { Scripts: 1, 'Agent and MCP directories': 1 }, addresses: 2, also_got_api_answer: 1 }]);
+  assert.equal(rep.api_answer_addresses, 2);
+  assert.equal(rep.browser_like_api_answer_addresses, 1);
   const text = formatLogs(rep).join('\n');
-  assert.match(text, /\/llms\.txt {2}2 requests, 2 addresses, 1 of them also called the API/);
+  assert.match(text, /\/llms\.txt {2}2 requests, 2 addresses, 1 of them also got a successful API answer/);
+  assert.doesNotMatch(text, /count those as agents/);
   assert.doesNotMatch(text, /198\.51\.100/); // never prints addresses
 });
 

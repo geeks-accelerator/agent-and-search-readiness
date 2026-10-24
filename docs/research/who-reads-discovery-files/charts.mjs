@@ -35,7 +35,7 @@ ${body}
 
 // Who reads each file: one 100% bar per file, split by reader class.
 const CLASSES = [
-  ['verifiedAI', 'verified AI bots', '#2557c7'],
+  ['verifiedAI', "Cloudflare's legacy AI categories", '#2557c7'],
   ['verifiedOther', 'other verified bots', '#8fb0ea'],
   ['namedUnverified', 'crawler names, not verified', '#c2362b'],
   ['directories', 'agent and llms.txt directories', '#8a5cd6'],
@@ -67,7 +67,7 @@ function demand(file, title, keys) {
   writeFileSync(new URL(file, dir), svg(W, H, title, body, [['sites asked for it', '#c9d5ee'], ['sites that serve it', '#2557c7']]));
 }
 
-// Follow-through: of the addresses that read a file, the share that made a successful API or MCP call.
+// Same-week overlap: of the addresses that requested a file, the share that also got a successful API or MCP answer.
 function follow(file, title) {
   const rows = Object.entries(D.followThrough.files).sort((a, b) => b[1].readers - a[1].readers);
   const W = 1040, L = 300, R = 170, TOP = 90, ROW = 24, iw = W - L - R, H = TOP + rows.length * ROW + 20;
@@ -79,12 +79,12 @@ function follow(file, title) {
       + `<rect x="${L}" y="${y}" width="${nb * iw}" height="${ROW - 8}" fill="#2557c7"/>`
       + text(L + iw + 8, y + 12, `${f.calledApi} of ${f.readers} (${Math.round(share * 100)}%)`);
   }).join('');
-  writeFileSync(new URL(file, dir), svg(W, H, title, body, [['called the API, non-browser user agent', '#2557c7'], ['called the API, any user agent', '#8fb0ea']]));
+  writeFileSync(new URL(file, dir), svg(W, H, title, body, [['also got an API answer, non-browser user agent', '#2557c7'], ['also got an API answer, any user agent', '#8fb0ea']]));
 }
 
 const discovery = ['/robots.txt', '/sitemap.xml', '*.md', '/llms.txt', '/llms-full.txt', '/openapi.json', '/.well-known/agent-card.json', '/.well-known/agent.json', '/.well-known/ard.json', '/.well-known/ai-catalog.json', '/.well-known/mcp/server-card.json', '/.well-known/mcp.json', '/.well-known/agent-skills/index.json', '/.well-known/api-catalog', '/.well-known/security.txt', '/.well-known/ai-plugin.json'];
 readers('readers.svg', 'Who requested each discovery file (share of requests, total at right)', discovery);
 readers('endpoints.svg', 'Who requested /mcp and /api', ['/mcp', '/api']);
 demand('demand.svg', 'Asked for versus served, by site', ['/robots.txt', '/sitemap.xml', '/llms.txt', '/.well-known/security.txt', '/api', '/openapi.json', '*.md', '/.well-known/agent-card.json', '/.well-known/ai-plugin.json', '/mcp', '/.well-known/mcp.json', '/.well-known/agent.json', '/.well-known/ard.json', '/llms-full.txt', '/.well-known/ai-catalog.json', '/.well-known/api-catalog']);
-follow('follow-through.svg', 'Readers who went on to call the API or MCP endpoint (16 sites with one)');
+follow('follow-through.svg', 'Readers who also got a successful API or MCP answer that week (16 sites)');
 console.log('wrote readers.svg, endpoints.svg, demand.svg, follow-through.svg');

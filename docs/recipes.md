@@ -236,7 +236,6 @@ export async function GET() {
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',
       Vary: 'Accept',
-      'x-markdown-tokens': String(Math.ceil(markdown.length / 4)), // about four characters per token
       Link: '<https://example.com/>; rel="canonical"',
     },
   });

@@ -71,8 +71,8 @@ export async function startFixture({ allow = 'GET, HEAD' } = {}) {
   if (path === '/old') return send(req, res, 301, { location: `${D}/about` }, '');
   if (path === '/brotli') { res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'br' }); return res.end(brotliCompressSync(pages['/'])); }
   if (path.startsWith('/.well-known/')) return send(req, res, 404, { 'content-type': 'application/json' }, `{"error":"not_found","llms":"${D}/llms.txt"}`);
-  if (wantsMd && path === '/') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept', 'x-markdown-tokens': '40' }, llms);
-  if (wantsMd && path === '/docs/guide') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept', 'x-markdown-tokens': '30' }, '# Guide\n\n## Run it\n\nSteps.\n');
+  if (wantsMd && path === '/') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, llms);
+  if (wantsMd && path === '/docs/guide') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, '# Guide\n\n## Run it\n\nSteps.\n');
   if (pages[path]) return send(req, res, 200, { ...html, link }, pages[path]);
   return send(req, res, 404, { 'content-type': 'text/html' }, '<!doctype html><title>Not found</title><h1>Not found</h1>');
   });

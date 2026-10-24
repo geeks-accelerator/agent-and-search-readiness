@@ -11,7 +11,7 @@ import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '2.2.0';
+export const VERSION = '2.2.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -326,8 +326,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     if (!/text\/markdown/.test(homeMd.type)) miss(id, name, level, `Accept: text/markdown on / returns ${ct(homeMd)}`);
     else if (!varyAccept(homeMd) || !varyAccept(home)) miss(id, name, level, `Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
     else if (copy.gone.length) miss(id, name, level, `the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${list(copy.gone.map((h) => `"${h}"`))}`);
-    else if (!tokens) miss(id, name, level, 'markdown and Vary are right; add x-markdown-tokens');
-    else pass(id, name, level, `markdown with Vary: Accept on both, x-markdown-tokens ${tokens}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
+    else pass(id, name, level, `markdown with Vary: Accept on both${tokens ? `, x-markdown-tokens ${tokens}` : ''}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
   }
 
   // ---- D9 AI catalog (ARD) ----

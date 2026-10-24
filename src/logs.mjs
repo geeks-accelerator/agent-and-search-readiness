@@ -9,7 +9,7 @@ export const FAMILIES = [
   ['This audit (readiness-audit)', /^readiness-audit\//i],
   // Other audit tools read discovery files at least as often as agents do (docs/research/who-reads-discovery-files.md).
   ['Other audit tools', /security-pranks-audit|isitagentready|agentprobe|agent-tools\.cloud|semrushbot|ahrefsbot|lumar|seojuice|sitebulb|screaming frog/i],
-  ['Agent and MCP directories', /agenstrybot|brickbluebot|agentprobe|mcpharbor|agenttrustbot|taifoonharvester|mcphub-probe|invokerankbot|proofbench|thepluginstorebot|protogrid-probe|glidemcpindex|agent-tools\.cloud/i],
+  ['Agent and MCP directories', /agenstrybot|brickbluebot|mcpharbor|agenttrustbot|taifoonharvester|mcphub-probe|invokerankbot|proofbench|thepluginstorebot|protogrid-probe|glidemcpindex|agent-tools\.cloud/i],
   ['llms.txt directories', /llms\.?txt/i],
   ['Assistants fetching for a person', /chatgpt-user|claude-user|perplexity-user|meta-externalfetcher/i],
   ['AI crawlers', new RegExp([...AI_BOTS, 'meta-webindexer', 'meta-externalagent', 'bytespider', 'ccbot'].map((b) => b.replace(/[-.]/g, '\\$&')).join('|'), 'i')],
@@ -25,8 +25,9 @@ export function family(ua) {
   return FAMILIES.find(([, re]) => re.test(ua))?.[0] ?? 'Unidentified';
 }
 
-// Families whose user agent can't show an agent: count them as one only when the same address called the API.
-const UNVERIFIED = new Set(['Browsers', 'Headless browsers', 'Unidentified', 'No user agent']);
+// Families whose user agent says nothing about what the client is. A successful API answer to one of them is
+// activity, not proof of an agent: a site's own pages call its API too.
+const BROWSER_LIKE = new Set(['Browsers', 'Headless browsers', 'Unidentified', 'No user agent']);
 
 // Families named after a crawler or directory. A name is a claim: across one owner's 56 domains in a week of
 // October 2026, none of 448k probes came from a verified bot, and one scanner used about 20 AI-crawler names
@@ -79,7 +80,8 @@ export function bucket(path) {
   if (/\.md$/i.test(p)) return 'markdown pages (*.md)';
   return null;
 }
-const isApiCall = (r) => r.path.startsWith('/api/') || (r.path === '/mcp' && r.method === 'POST');
+// A call that worked: a 2xx from /api/* or a POST to /mcp. A 404 or a 5xx there is a guess or a probe, not use.
+const isApiSuccess = (r) => (r.path.startsWith('/api/') || (r.path === '/mcp' && r.method === 'POST')) && r.status >= 200 && r.status < 300;
 
 /** Tally lines one at a time; result() gives the report. */
 export function logTally() {
@@ -87,7 +89,7 @@ export function logTally() {
   const hits = new Map(); // bucket -> Map(family -> count)
   const readers = new Map(); // bucket -> Set(addr)
   const apiAddrs = new Set();
-  const unverifiedAddrs = new Set();
+  const browserLikeAddrs = new Set();
   const impostors = new Map(); // crawler family -> requests for secret files under its name
   return {
     add(line) {
@@ -96,7 +98,7 @@ export function logTally() {
       if (!r) return;
       parsed++;
       const fam = family(r.ua);
-      if (isApiCall(r)) { if (r.addr) apiAddrs.add(r.addr); if (UNVERIFIED.has(fam) && r.addr) unverifiedAddrs.add(r.addr); }
+      if (isApiSuccess(r) && r.addr) { apiAddrs.add(r.addr); if (BROWSER_LIKE.has(fam)) browserLikeAddrs.add(r.addr); }
       if (CRAWLER_FAMILIES.has(fam) && isSecretProbe(r.path)) impostors.set(fam, (impostors.get(fam) ?? 0) + 1);
       const b = bucket(r.path);
       if (!b) return;
@@ -112,11 +114,11 @@ export function logTally() {
           requests: [...fams.values()].reduce((a, b) => a + b, 0),
           families: Object.fromEntries([...fams].sort((a, b) => b[1] - a[1])),
           addresses: addrs.size,
-          also_called_api: [...addrs].filter((a) => apiAddrs.has(a)).length,
+          also_got_api_answer: [...addrs].filter((a) => apiAddrs.has(a)).length,
         };
       }).sort((a, b) => b.requests - a.requests);
       const crawlerNames = { requests: [...impostors.values()].reduce((a, b) => a + b, 0), families: Object.fromEntries([...impostors].sort((a, b) => b[1] - a[1])) };
-      return { lines, parsed, api_addresses: apiAddrs.size, unverified_api_addresses: unverifiedAddrs.size, crawler_names_on_secret_probes: crawlerNames, paths };
+      return { lines, parsed, api_answer_addresses: apiAddrs.size, browser_like_api_answer_addresses: browserLikeAddrs.size, crawler_names_on_secret_probes: crawlerNames, paths };
     },
   };
 }
@@ -126,11 +128,11 @@ export function formatLogs(rep) {
   const out = [`Read ${rep.parsed} of ${rep.lines} log lines (${rep.lines - rep.parsed} not understood). Families are the names clients send, not verified.`, ''];
   if (!rep.paths.length) out.push('No requests for discovery files.');
   for (const p of rep.paths) {
-    out.push(`${p.path}  ${p.requests} request${p.requests === 1 ? '' : 's'}${p.addresses ? `, ${p.addresses} address${p.addresses === 1 ? '' : 'es'}, ${p.also_called_api} of them also called the API` : ''}`);
+    out.push(`${p.path}  ${p.requests} request${p.requests === 1 ? '' : 's'}${p.addresses ? `, ${p.addresses} address${p.addresses === 1 ? '' : 'es'}, ${p.also_got_api_answer} of them also got a successful API answer` : ''}`);
     for (const [fam, n] of Object.entries(p.families)) out.push(`  ${String(n).padStart(6)}  ${fam}`);
   }
-  out.push('', `API calls came from ${rep.api_addresses} address${rep.api_addresses === 1 ? '' : 'es'}. ${rep.unverified_api_addresses} of them sent a browser, headless or missing user agent: count those as agents, since they called the API.`);
-  out.push('Browsers, headless browsers and unidentified clients above count as agents only where they also called the API (STANDARD.md, T3).');
+  out.push('', `Successful API answers (a 2xx from /api/* or a POST to /mcp) went to ${rep.api_answer_addresses} address${rep.api_answer_addresses === 1 ? '' : 'es'}, ${rep.browser_like_api_answer_addresses} of them with a browser, headless or missing user agent.`);
+  out.push('An address that read a file and also got an API answer shows activity in the same log, not order, and not that the client is an agent: a site\'s own pages call its API too (STANDARD.md, T3).');
   const named = rep.crawler_names_on_secret_probes;
   if (named.requests) out.push('', `${named.requests} request${named.requests === 1 ? '' : 's'} under crawler names asked for secret files (.env, .git, keys, dumps): ${Object.entries(named.families).map(([f, n]) => `${f} ${n}`).join(', ')}. Real crawlers don't ask for these, so treat those names as claims: count a crawler by the CDN's verified flag, the vendor's published addresses or reverse DNS, not its name (T3).`);
   else out.push('', 'No request under a crawler name asked for secret files.');
