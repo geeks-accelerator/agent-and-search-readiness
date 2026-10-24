@@ -10,13 +10,12 @@
 import { readFileSync, createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { audit, matrix, score, LEVELS, REVIEW, VERSION } from '../src/audit.mjs';
-import { parsePrevious, compareResults, formatComparison } from '../src/helpers.mjs';
+import { parsePrevious, compareResults, formatComparison, nodeOk, NODE_REQUIREMENT } from '../src/helpers.mjs';
 import { logTally, formatLogs } from '../src/logs.mjs';
 
 // engines in package.json only warns, so say it plainly before anything fails oddly.
-const NODE_MAJOR = 26;
-if (Number(process.versions.node.split('.')[0]) < NODE_MAJOR) {
-  console.error(`readiness-audit needs Node ${NODE_MAJOR} or later, with current security releases (this is ${process.versions.node}).`);
+if (!nodeOk(process.versions.node)) {
+  console.error(`readiness-audit needs ${NODE_REQUIREMENT} (each supported line's current security release); this is ${process.versions.node}. Update with your version manager (nvm install 24), or set node-version: 24 with check-latest: true in CI.`);
   process.exit(2);
 }
 

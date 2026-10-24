@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 (2026-10-24)
+
+From the sister project's agent, after it reviewed this one. No scoring changes.
+
+- **Node 22 and 24 work again,** each at its current security release: the CLI accepts 22.23.4, 24.22.1 or 26.12.1, or later on the same line, and refuses older releases and end-of-life or odd-numbered lines, with advice on updating. 2.1.0 to 2.2.1 needed Node 26, so `npx readiness-audit` failed on the many machines and CI images that run 22 or 24. The audit's own defenses (refusing Brotli bodies, capping body sizes) don't depend on the Node line, and each line's security release has the October 21 fixes. CI tests all three lines with `check-latest`, and a test keeps `engines`, the docs and the CI matrix in step with `NODE_LINES`.
+- **README:** a Quick start with fresh output and the one-line prompt to adopt the standard; "Why this exists", with the evidence up front; a "Safe to run" section for the mechanics; Lighthouse and Google's Rich Results Test in "How it fits"; and a "Next step".
+
 ## 2.2.1 (2026-10-24)
 
 Corrections after an outside review of 2.2.0 and its research. No new checks; D8 is easier to pass.

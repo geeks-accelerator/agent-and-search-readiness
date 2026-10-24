@@ -16,7 +16,7 @@ This repo publishes the Agent and Search Readiness Standard (STANDARD.md) and it
 
 ## Rules
 
-- **No dependencies.** Node 26 or later, with current security releases, built-ins only. All HTTP goes through `request()` in `src/http.mjs`, never `fetch`: it refuses Brotli and other encodings it doesn't decode itself, so an audited site can't reach a decoder bug.
+- **No dependencies.** Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line (`NODE_LINES` in `src/helpers.mjs`, raised after each Node security release), built-ins only. All HTTP goes through `request()` in `src/http.mjs`, never `fetch`: it refuses Brotli and other encodings it doesn't decode itself, so an audited site can't reach a decoder bug.
 - **Read-only.** A check may GET anything and may POST only requests that create nothing on the audited site (an MCP initialize, server/discover, tools/list, an empty POST to `/`). Never register, write or log in.
 - **Every check has an ID that exists in the STANDARD.md checklist.** The tests fail otherwise. A new check needs its item described in STANDARD.md first.
 - **An item belongs in the standard when most projects should do it,** and its level has a stated reason: working agents rely on it, it keeps declarations true, or it's baseline hygiene. A practice from one project goes in "Considered and left out", with the reason.

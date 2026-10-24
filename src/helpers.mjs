@@ -20,6 +20,26 @@ export function spread(list, n) {
   return list.length <= n ? list : Array.from({ length: n }, (_, i) => list[Math.floor((i * list.length) / n)]);
 }
 
+/**
+ * Each supported Node line at its current security release (the 2026-10-21 release fixed a
+ * Brotli decoder bug and TLS hostname bypasses in all three). TLS checks and the decoders are
+ * Node's, so being on a line's latest security release matters more than which line. End-of-life
+ * and odd-numbered lines get no security releases and are refused. Raise these after each Node
+ * security release, with package.json's engines and the docs (a test checks they agree).
+ */
+export const NODE_LINES = { 22: '22.23.4', 24: '24.22.1', 26: '26.12.1' };
+export const NODE_REQUIREMENT = `Node ${Object.values(NODE_LINES).slice(0, -1).join(', ')} or ${Object.values(NODE_LINES).at(-1)}, or later on the same line`;
+
+/** Whether a Node version is a supported line at its security release, or an even line newer than these. */
+export function nodeOk(version) {
+  const parts = (v) => v.split('.').map(Number);
+  const atLeast = (v, min) => { const [a, b] = [parts(v), parts(min)]; const i = a.findIndex((n, j) => n !== b[j]); return i < 0 || a[i] > b[i]; };
+  const major = parts(version)[0];
+  const newest = Math.max(...Object.keys(NODE_LINES).map(Number));
+  if (major > newest) return major % 2 === 0; // an even line newer than this release knows; odd lines get no long-term support
+  return NODE_LINES[major] !== undefined && atLeast(version, NODE_LINES[major]);
+}
+
 /** Up to three items, then how many more: "a, b, c, +4 more". */
 export function list(xs, sep = ', ') {
   return `${xs.slice(0, 3).join(sep)}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;

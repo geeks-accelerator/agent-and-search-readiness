@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { VERSION, REVIEW, score, matrix, isPrivateAddress, makeGuard } from '../src/audit.mjs';
+import { NODE_LINES, NODE_REQUIREMENT, nodeOk } from '../src/helpers.mjs';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const source = readFileSync(new URL('../src/audit.mjs', import.meta.url), 'utf8');
@@ -13,15 +14,19 @@ test('VERSION matches package.json', () => {
   assert.equal(VERSION, pkg.version);
 });
 
-test('the docs and the CLI name the Node version package.json requires', () => {
-  const floor = pkg.engines.node.match(/^>=(\d+)$/)?.[1];
-  assert.ok(floor, `engines.node should be ">=N", got ${pkg.engines.node}`);
-  for (const file of ['README.md', 'STANDARD.md', 'AGENTS.md']) {
-    const named = [...readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').matchAll(/Node (\d+) or later/g)].map((m) => m[1]);
-    assert.ok(named.length, `${file} names no Node version`);
-    assert.deepEqual([...new Set(named)], [floor], file);
+test('package.json, the docs and the CI matrix name the Node lines the CLI accepts', () => {
+  const v = Object.values(NODE_LINES);
+  assert.equal(pkg.engines.node, `${v.slice(0, -1).map((x) => `^${x}`).join(' || ')} || >=${v.at(-1)}`);
+  for (const file of ['README.md', 'STANDARD.md', 'AGENTS.md', 'SECURITY.md']) {
+    assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').includes(NODE_REQUIREMENT), `${file} should say "${NODE_REQUIREMENT}"`);
   }
-  assert.match(readFileSync(new URL('../bin/readiness-audit.mjs', import.meta.url), 'utf8'), new RegExp(`NODE_MAJOR = ${floor};`));
+  const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assert.match(ci, new RegExp(`node: \\[${Object.keys(NODE_LINES).join(', ')}\\]`));
+});
+
+test('nodeOk accepts each line at its security release, and refuses older ones', () => {
+  for (const ok of ['22.23.4', '22.24.0', '24.22.1', '26.12.1', '26.13.0', '28.0.0']) assert.equal(nodeOk(ok), true, ok);
+  for (const no of ['22.23.3', '24.21.0', '26.12.0', '26.10.0', '25.9.0', '20.19.0', '27.0.0']) assert.equal(nodeOk(no), false, no);
 });
 
 test('every check the scorecard runs is in the standard checklist', () => {

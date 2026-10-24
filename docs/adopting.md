@@ -6,7 +6,7 @@ To switch a project over, give its coding agent one line:
 
 Everything below is for that agent. The lessons at the end come from the projects that switched over first.
 
-1. **Score the live site:** `npx readiness-audit@2 <your-domain>`, on Node 26 or later. It's read-only; run it only against your own sites. Exit code 1 means a required check failed.
+1. **Score the live site:** `npx readiness-audit@2 <your-domain>`, on Node 22, 24 or 26 at its current security release. It's read-only; run it only against your own sites. Exit code 1 means a required check failed.
    - **Moving from `readiness-audit@1`:** change the pin to `@2` everywhere (scripts, CI, your stub), and drop `--no-api`: the API checks now run only when the site has or declares an API. 2.0.0 reads every static page and three pages of each template, so expect new findings on pages like `/about` and `/privacy` that 1.x never sampled. The CHANGELOG lists every check that can newly fail.
 
 2. **Switch over the docs (one commit):**

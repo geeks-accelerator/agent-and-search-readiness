@@ -13,7 +13,8 @@ jobs:
     steps:
       - uses: actions/setup-node@v7
         with:
-          node-version: 26
+          node-version: 24
+          check-latest: true # the CLI needs the line's current security release
       - name: Score the live site
         run: npx --yes readiness-audit@2 example.com
       # To score a preview deployment before it ships, point --base at it:

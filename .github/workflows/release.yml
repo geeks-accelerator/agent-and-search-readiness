@@ -26,6 +26,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
+          check-latest: true
           registry-url: https://registry.npmjs.org
       - name: npm 12 (trusted publishing needs 11.5.1 or later; a major pin, so a new major can't change publishing unannounced)
         run: npm install -g npm@12

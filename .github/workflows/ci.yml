@@ -12,11 +12,17 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Every line the CLI accepts (NODE_LINES in src/helpers.mjs).
+        node: [22, 24, 26]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 26
+          node-version: ${{ matrix.node }}
+          # A runner's cached Node can sit below the line's security release, which the CLI refuses.
+          check-latest: true
       - run: npm test
       - name: The CLI starts
         run: node bin/readiness-audit.mjs --version

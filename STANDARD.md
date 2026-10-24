@@ -5,7 +5,7 @@
 **Last verified:** 2026-10-05
 
 > **Start here**
-> 1. Score your site: `npx readiness-audit <domain>`. It needs Node 26 or later, with current security releases, and no dependencies.
+> 1. Score your site: `npx readiness-audit <domain>`. It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line, and no dependencies.
 > 2. Check [§3](#3-decide-what-applies) for the items that apply to your project.
 > 3. Fix required failures first. Each line the scorecard prints names an ID and the reason.
 > 4. Then the recommended items. Build a next-level item when your own traffic shows the problem it solves.
