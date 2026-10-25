@@ -2,7 +2,7 @@
 
 **What it is:** a common standard for making a site findable and usable by AI agents and search engines, built from six projects' own playbooks (animalhouse.ai, inbed.ai, magnifica.family, drifts.bot, achurch.ai, botsmatter.live), checked against the specs ([§16](#16-specs-and-sources)), scored against each live site, and revised after each project's agent reviewed it.
 **Scorecard:** `npx readiness-audit <domain>` (see the [README](README.md))
-**Last verified:** 2026-10-05
+**Last verified:** 2026-10-25
 
 > **Start here**
 > 1. Score your site: `npx readiness-audit <domain>`. It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line, and no dependencies.
@@ -134,7 +134,10 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 
 **D3 Server-rendered pages.** Every page's content is in the HTML the server sends, not loaded later by script, with a real logo through the framework's icon convention and a favicon set (missing icons show up as steady 404s). *Why: crawlers, link-preview bots and agents that fetch pages read the HTML, and many don't run JavaScript.* inbed's chat pages once shipped none of their 48 messages in the HTML. The page-level details (titles, canonicals, structured data, previews, headings, links) are W1 to W7 in [§5](#5-search-people-and-answer-engines).
 
-**D4 `/llms.txt` and `/llms-full.txt`**: a short map (what this is, how to start, links to every other surface) and the whole corpus in one fetch. Generate both and test them against the sitemap: agents follow the links, so every one must open. The scorecard samples them and warns about missing pages (an endpoint that answers 401 for want of a key is fine; templates like `{id}` are skipped). The file is markdown; serve it as `text/markdown` or `text/plain`, and use the same type wherever you link it.
+**D4 `/llms.txt` and `/llms-full.txt`**: three depths. llms.txt is the map: what this is, how to start, links to every other surface. llms-full.txt is the catalog an agent works from in one fetch: every page llms.txt links, with its URL, what it is, and the facts an agent needs to choose it or use it. Each page's markdown copy (D8) has the rest. Generate both files and test them against the sitemap: agents follow the links, so every one must open. The scorecard samples llms.txt's links, warns about missing pages (an endpoint that answers 401 for want of a key is fine; templates like `{id}` are skipped), and warns about sampled pages llms-full.txt doesn't list. Both files are markdown; serve them as `text/markdown` or `text/plain`, and use the same type wherever you link them.
+- **Put in what agents act on.** For an API or docs site, that's the reference itself: an agent writes a call from the parameters, not from a summary of them. For things people read, watch or listen to (articles, episodes, recordings), it's each item's summary, its facts (length, date, credits) and its link, not the body. A test: from this file alone, can an agent answer your site's common questions and pick the right link? *Harm prevented:* a file as thin as llms.txt sends the agent to open every page, and a file of every page's full text gets read in part. Agent fetch tools return the first part of a long file: 5,000 characters by default in the MCP reference fetch server, 20,000 in OpenClaw's `web_fetch`, 100,000 in Claude Code's WebFetch. Some tell the agent where to resume, but each further part is another fetch.
+- **It isn't the control for what AI may use.** Everything in llms-full.txt is already on your pages. To say what AI may do with your content, use D15's `Content-Signal` (`ai-train=no` keeps search and AI answers while declining training), or keep the content behind auth. Leaving a page's body out of llms-full.txt doesn't keep it from crawlers.
+- llms-full.txt is a convention: the llms.txt proposal defines only llms.txt and per-page markdown.
 - *Why required: agents doing tasks use it, though the AI crawlers mostly don't.* Across 56 domains in a week of October 2026, bots in Cloudflare's legacy AI categories made 49 of 1,406 llms.txt requests (GPTBot 5, ClaudeBot none in the sample) and requested robots.txt and the sitemap instead. On the 16 sites with an API, 13% of the addresses that requested llms.txt also got a successful API answer that week, 9% with a user agent that wasn't a browser's ([research](docs/research/who-reads-discovery-files.md)). In a controlled benchmark across 20 documentation sites, markdown with a linked llms.txt cut agents' wasted fetches from 2.23 per task with HTML to 0.11 ([Mintlify](https://www.mintlify.com/blog/llms-txt-agent-benchmark), 2026-07-17). Google Search ignores llms.txt (it said so in June 2026). At animalhouse, 79 requests in four and a half days came from:
   - agent directories (AgenstryBot, BrickBlueBot, agentprobe, MCPHarbor, AgentTrustBot);
   - llms.txt directories and validators;
@@ -799,7 +802,7 @@ Step-by-step instructions for a project's coding agent: [docs/adopting.md](docs/
   # Agent and Search Readiness
 
   This project follows the Agent and Search Readiness Standard:
-  https://github.com/geeks-accelerator/agent-and-search-readiness/blob/main/STANDARD.md
+  https://github.com/geeks-accelerator/agent-and-search-readiness/blob/v[version]/STANDARD.md
 
   Score this site: `npx readiness-audit@2 <domain>`. Current status: docs/readiness-status.md
 
@@ -809,6 +812,7 @@ Step-by-step instructions for a project's coding agent: [docs/adopting.md](docs/
   Project-specific notes:
   - (anything the standard doesn't cover)
   ```
+- **Pin the standard to a release tag.** Put the latest tag from the [releases page](https://github.com/geeks-accelerator/agent-and-search-readiness/releases) in place of `v[version]`. Your agents read the stub every session and act on what it links. A link to `main` gives them whatever was pushed last, before any release, tag or test; a tag gives them the text you reviewed. To take a newer standard, read the CHANGELOG entries since your tag, then change the tag.
 - **Pin the scorecard to a major version** (`npx readiness-audit@2 <domain>`), so a new release can't fail your build without warning.
 - **Run it in CI** after each deploy or on a schedule, and fail on a required regression. `examples/github-action.yml` is a starting point.
 - **Record declined items** (principle 9) in your CLAUDE.md or AGENTS.md, with the reason.
@@ -825,7 +829,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | D1 | robots.txt: the same rules for every crawler, Sitemap, side effects disallowed | R | agents, honesty | score |
 | D2 | sitemap.xml with real lastmod dates | R | traffic | score |
 | D3 | Server-rendered pages, real logo and favicons | R | agents, discovery | review |
-| D4 | llms.txt and llms-full.txt, generated, linked from skills and README | R | traffic | score, test |
+| D4 | llms.txt and llms-full.txt, generated, linked from skills and README; llms-full.txt lists every page llms.txt links | R | traffic | score, test |
 | D5 | `Link` headers: service-desc, service-doc, describedby, api-catalog | Rec | discovery | score |
 | D6 | security.txt with Expires once | R | hygiene | score |
 | D7 | JSON 404s for unknown well-known paths (`agent.json` included), JSON 405 with `Allow` on `POST /` | Rec | agents | score |
@@ -954,6 +958,9 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Discovery-file requests ("Who requests agent discovery files?") | this repo's research, 56 domains on Cloudflare, 2026-10-17 to 10-24, corrected 2026-10-24 | docs/research/who-reads-discovery-files.md |
 | Negotiated markdown requests | GoodBarber's own logs, 2026-09-04 to 09-18, read 2026-10-24 | https://www.goodbarber.com/blog/do-ai-agents-read-markdown-what-two-weeks-of-our-own-server-logs-say-a1622/ |
 | Markdown and llms.txt in agent tasks | Mintlify benchmark, 2026-07-17, read 2026-10-24 | https://www.mintlify.com/blog/llms-txt-agent-benchmark |
+| MCP reference fetch server's `max_length` (default 5,000 characters) | source, read 2026-10-25 | https://github.com/modelcontextprotocol/servers/blob/main/src/fetch/src/mcp_server_fetch/server.py |
+| OpenClaw `web_fetch` limits (`maxChars` default 20,000) | docs and source, read 2026-10-25 | https://docs.openclaw.ai/tools/web-fetch |
+| Claude Code WebFetch (100,000 characters per call) | Claude Code docs, read 2026-10-25 | https://code.claude.com/docs/en/tools-reference |
 | Crawler impersonation ("Bots in AI clothing") | agent-security-pranks research, 56 domains on Cloudflare, 2026-10-16 to 10-23, read 2026-10-24 | https://github.com/geeks-accelerator/agent-security-pranks/blob/main/docs/research/bots-in-ai-clothing.md |
 | 405 and `Allow` | RFC 9110 §15.5.6 | https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6 |
 | Headings | W3C WAI tutorial, read 2026-10-21 | https://www.w3.org/WAI/tutorials/page-structure/headings/ |

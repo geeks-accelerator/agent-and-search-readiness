@@ -6,6 +6,7 @@
 //   /docs/guide  markdown copy lacks a section                -> D8 warns
 //   /brotli      answers a Brotli body nobody asked for       -> refused, so W1 sees no title
 //   /old         llms.txt links it; it 301s to /about         -> D4 warns
+//   /privacy     llms.txt links it; llms-full.txt doesn't      -> D4 warns
 // Everything else is meant to pass. Each request is logged in combined format, for --logs.
 import { createServer } from 'node:http';
 import { gzipSync, brotliCompressSync } from 'node:zlib';
@@ -40,7 +41,9 @@ const pages = {
 
 const sitemap = (urls) => `<?xml version="1.0"?><urlset>${urls.map((u, i) => `<url><loc>${D}${u}</loc><lastmod>2026-10-${String((i % 20) + 1).padStart(2, '0')}</lastmod></url>`).join('')}</urlset>`;
 const staticPaths = ['/', '/about', '/privacy', '/docs/guide', '/items', '/brotli'];
-const llms = `# Fixture\n\n> A fixture site for readiness-audit.\n\n- [About](${D}/about)\n- [Guide](${D}/docs/guide)\n- [Old page](${D}/old)\n- [Items](${D}/items)\n`;
+const llms = `# Fixture\n\n> A fixture site for readiness-audit.\n\n- [About](${D}/about)\n- [Guide](${D}/docs/guide)\n- [Old page](${D}/old)\n- [Items](${D}/items)\n- [Privacy](${D}/privacy)\n`;
+// The catalog: each page's link and summary, not its full text. It leaves out /privacy.
+const llmsFull = `# Fixture\n\n> A fixture site for readiness-audit.\n\n## Pages\n\n${[['About', '/about'], ['Guide', '/docs/guide'], ['Items', '/items']].map(([t, p]) => `### [${t}](${D}${p})\n\n${pages[p].match(/name="description" content="([^"]+)"/)[1]}\n`).join('\n')}`;
 
 function send(req, res, status, headers, body) {
   const gz = /gzip/.test(req.headers['accept-encoding'] ?? '') && typeof body === 'string' && body.length > 200;
@@ -74,7 +77,7 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0 } = {}) {
   if (path === '/sitemap-static.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(staticPaths));
   if (path === '/sitemap-items.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(items.map((id) => `/items/${id}`)));
   if (path === '/llms.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, llms);
-  if (path === '/llms-full.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, `${llms}\n## Everything\n\n${'Full text. '.repeat(100)}`);
+  if (path === '/llms-full.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, llmsFull);
   if (path === '/.well-known/security.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, 'Contact: mailto:security@fixture.example\nExpires: 2027-06-01T00:00:00Z\n');
   if (path === '/og.png') return send(req, res, 200, { 'content-type': 'image/png' }, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   if (path === '/old') return send(req, res, 301, { location: `${D}/about` }, '');

@@ -4,7 +4,7 @@
 [![npm](https://img.shields.io/npm/v/readiness-audit)](https://www.npmjs.com/package/readiness-audit)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Score any site's readiness for AI agents and search:** llms.txt, robots.txt rules for AI crawlers, the sitemap, structured data, link previews, OpenAPI, MCP servers, agent skills and the A2A path. A standard built from production request logs, and a command-line audit that checks a live site against it. Read-only, no account, no API key.
+**Score a site's readiness for AI agents and search:** llms.txt, robots.txt rules for AI crawlers, the sitemap, structured data, link previews, OpenAPI, MCP servers, agent skills and the A2A path. A standard built from production request logs, and a command-line audit that checks a live site against it. Read-only, no account, no API key.
 
 ## Quick start
 
@@ -15,21 +15,20 @@ npx readiness-audit example.com
 It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line (each supported line's current security release), and has no dependencies.
 
 ```
-Agent and search readiness: animalhouse.ai  (readiness-audit v2.3.0)
+Agent and search readiness: animalhouse.ai  (readiness-audit v2.5.0, 2026-11-04T02:41Z)
 
 Required
   PASS  D1   robots.txt                           1 group with consistent rules, Sitemap listed
-  PASS  D4   llms.txt and llms-full.txt           llms.txt 16.2 KB, llms-full.txt 65 KB; 10 sampled links resolve
-  PASS  D12  No false declarations                no OAuth, A2A, plugin or server-card claims without the service
-  PASS  W1   Titles and descriptions              27 sampled pages (18 static, 3 templates), all with their own
-  WARN  W6   Page structure                       heading levels skipped on /agent/[name] (h1 to h3)
-  PASS  M4   Hosted MCP edge                      both eras, JSON for every Accept, browsers redirected
+  PASS  D4   llms.txt and llms-full.txt           llms.txt 16.2 KB, llms-full.txt 65 KB; 10 sampled links resolve without a redirect; llms-full.txt lists the 3 sampled pages
+  PASS  D12  No false declarations                no OAuth, A2A, plugin or server-card claims without the service behind them
+  PASS  W1   Titles and descriptions              27 sampled pages (18 static, 3 templates), all with their own title and description
+  PASS  M4   Hosted MCP edge                      both eras, JSON for every Accept, browsers redirected, aliases redirect
   ...
 Recommended
   PASS  D7   JSON 404s and a JSON 405 on POST /   JSON 404 for unknown well-known paths, JSON 405 for POST / (Allow: GET, HEAD, OPTIONS)
   WARN  D8   Markdown for agents                  Vary: Accept missing on the HTML response
   ...
-Score on 2026-10-24: required 17 of 19, recommended 10 of 11, next level 1 of 2
+Score on 2026-11-04: required 19 of 19, recommended 10 of 11, next level 1 of 2
 ```
 
 To switch a project over, give its coding agent one line:

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.0 (2026-11-03)
+
+From a project's agent that was asked why llms-full.txt should hold a site's whole text. D4 said "the whole corpus" without saying what that meant, and the scorecard only checked that the file existed. One new warning, no new failures: a site whose llms-full.txt leaves out pages llms.txt links now warns in D4, which lowers its required score until fixed but doesn't change the exit code.
+
+- **D4 warns about pages llms-full.txt doesn't list.** Of the llms.txt links it samples, each one that answers HTML (besides the homepage) must appear as a link in llms-full.txt. Files like `/openapi.json` are surfaces, not pages, and aren't counted. A passing D4 says how many sampled pages llms-full.txt lists.
+- **STANDARD.md:** D4 describes three depths. llms.txt is the map, llms-full.txt is the catalog an agent works from in one fetch (every page, with what it is and the facts an agent needs to choose or use it), and each page's markdown copy has the rest. For an API or docs site, the catalog holds the reference itself; for things people read, watch or listen to, each item's summary, facts and link. The harm on each side is named, with the documented read limits of three agent fetch tools. D4 says llms-full.txt isn't the control for what AI may use (that's D15's `Content-Signal`, or auth), and that llms-full.txt is a convention the llms.txt proposal doesn't define. §16 cites the three tools' limits.
+
+From an outside review of 2.4.0:
+
+- **The §14 stub links a release tag, not `main`.** Agents read the stub every session and act on it, and a link to `main` gives them whatever was pushed last, before any release, tag or test. The stub says `blob/v[version]/STANDARD.md`, and §14 and docs/adopting.md say to fill in the latest tag and change it after reading the CHANGELOG. The status page that `--matrix` writes links the standard at the tag of the scorecard version that wrote it.
+- **"Last verified" is 2026-10-25,** the newest date a source in §16 was read. A test fails when it's earlier.
+- **The README's sample output is fresh** (animalhouse.ai, 2026-11-04), and a test fails when its version isn't the package's.
+- **"Score a site's readiness",** not "any site's", in the README and package.json, and SECURITY.md says why to audit only sites you own or may test: one run sends dozens to a few hundred requests, several at a time, and POSTs to any MCP endpoint it finds.
+
 ## 2.4.0 (2026-11-02)
 
 From a review by the agents that run the scorecard daily for two projects. No scoring changes, and no new warnings or failures.

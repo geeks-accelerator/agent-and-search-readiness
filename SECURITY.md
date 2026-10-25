@@ -7,4 +7,4 @@ What it does to protect the machine that runs it:
 - Every request goes through one function (`request()` in `src/http.mjs`) on `node:http(s)`. It asks for gzip or deflate and decodes those itself; a body in any other encoding, such as Brotli, is refused, so a site can't reach a decoder bug. `fetch` isn't used: it decodes Brotli even when the request didn't ask for it.
 - It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line, and refuses older releases: TLS hostname checks and the decoders are Node's.
 
-Run the scorecard only against sites you own or have permission to test.
+Run the scorecard only against sites you own or have permission to test. One run sends dozens to a few hundred requests, several at a time, and POSTs to any MCP endpoint it finds. A site that hasn't agreed to that can see it as load or as a probe.

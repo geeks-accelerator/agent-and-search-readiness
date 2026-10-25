@@ -11,7 +11,7 @@ import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '2.4.0';
+export const VERSION = '2.5.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -272,12 +272,22 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     const linkProblems = [];
     if (broken.length) linkProblems.push(`broken links in llms.txt: ${list(broken)} (${broken.length} of ${sample.length} sampled)`);
     if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${list(redirected)}`);
+    // llms-full.txt is the catalog: every page llms.txt links appears in it, so an agent can choose from one fetch.
+    // Pages are the sampled links that answer HTML, besides the homepage; files like /openapi.json are surfaces, not pages.
+    let pagesListed = 0;
+    if (ok(llmsFull) && !llmsFull.tooBig) {
+      const covered = new Set(llmsLinks(llmsFull.text, `${BASE}/llms-full.txt`, siteHosts).map(norm));
+      const pagesLinked = answers.filter(({ u, r }) => ok(r) && /text\/html/.test(r.type) && norm(r.url) === norm(u) && new URL(u).pathname !== '/');
+      const uncovered = pagesLinked.filter(({ u }) => !covered.has(norm(u))).map(({ u }) => u.replace(BASE, '') || '/');
+      if (uncovered.length) linkProblems.push(`pages llms.txt links that llms-full.txt doesn't list: ${list(uncovered)} (${uncovered.length} of ${pagesLinked.length} sampled pages)`);
+      else pagesListed = pagesLinked.length;
+    }
     const kb = (r, digits) => (r.tooBig ? r.error.replace(/^.*?over /, 'over ') : `${(r.text.length / 1024).toFixed(digits)} KB`);
     const sizes = `llms.txt ${kb(llms, 1)}, llms-full.txt ${kb(llmsFull, 0)}`;
     if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
     else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
     else if (linkProblems.length) record(id, name, level, 'warn', `${linkProblems.join('; ')}${cached(llms)}`);
-    else pass(id, name, level, `${sizes}${sample.length ? `; ${sample.length} sampled link${sample.length === 1 ? '' : 's'} resolve without a redirect` : ''}`);
+    else pass(id, name, level, `${sizes}${sample.length ? `; ${sample.length} sampled link${sample.length === 1 ? '' : 's'} resolve without a redirect` : ''}${pagesListed ? `; llms-full.txt lists the ${pagesListed} sampled page${pagesListed === 1 ? '' : 's'}` : ''}`);
   }
 
   // ---- D5 Link headers (recommended; a wrong service-desc is a false declaration) ----
@@ -888,7 +898,7 @@ export function matrix(reports, command, recorded = {}) {
   const ids = reports[0].results.map((r) => [r.id, r.name, r.level]);
   const out = [
     '# Agent and Search Readiness Status', '',
-    `Generated ${new Date().toISOString().slice(0, 10)} by \`${command}\` (readiness-audit v${VERSION}). Don't edit it by hand: regenerate it. What each ID means: [the standard](${REPO}/blob/main/STANDARD.md).`, '',
+    `Generated ${new Date().toISOString().slice(0, 10)} by \`${command}\` (readiness-audit v${VERSION}). Don't edit it by hand: regenerate it. What each ID means: [the standard](${REPO}/blob/v${VERSION}/STANDARD.md).`, '',
     'The scorecard sees only what is visible from outside a site. Items checked in review and tests (listed at the end) aren\'t in these numbers, so a high score can hide real gaps.', '',
     '✓ pass, ✗ fail, ! warning, – not applicable.', '',
     `| ID | Check | Level | ${domains.join(' | ')} |`, `|---|---|---|${domains.map(() => '---').join('|')}|`,

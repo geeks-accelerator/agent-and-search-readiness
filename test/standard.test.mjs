@@ -14,6 +14,20 @@ test('VERSION matches package.json', () => {
   assert.equal(VERSION, pkg.version);
 });
 
+test("the README's sample output is from this version", () => {
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const shown = readme.match(/\(readiness-audit v(\d+\.\d+\.\d+)/)?.[1];
+  assert.equal(shown, pkg.version, 'rerun the Quick start sample against a real site and paste the new output');
+});
+
+test('"Last verified" is no earlier than the newest source read in §16', () => {
+  const verified = standard.match(/^\*\*Last verified:\*\* (\d{4}-\d{2}-\d{2})$/m)?.[1];
+  assert.ok(verified, 'STANDARD.md should have a "Last verified" line');
+  const sources = standard.slice(standard.indexOf('## 16.'));
+  const newest = [...sources.matchAll(/read (\d{4}-\d{2}-\d{2})/g)].map((m) => m[1]).sort().at(-1);
+  assert.ok(verified >= newest, `Last verified is ${verified}, but §16 cites a source read ${newest}`);
+});
+
 test('package.json, the docs and the CI matrix name the Node lines the CLI accepts', () => {
   const v = Object.values(NODE_LINES);
   assert.equal(pkg.engines.node, `${v.slice(0, -1).map((x) => `^${x}`).join(' || ')} || >=${v.at(-1)}`);
