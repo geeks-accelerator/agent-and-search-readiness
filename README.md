@@ -42,7 +42,7 @@ The agent reads the page when it runs. To have it follow the text you reviewed, 
 
 What agents and crawlers actually ask a site for, from production logs:
 
-- **The AI crawlers read robots.txt and the sitemap, not llms.txt.** In a week across 56 domains on Cloudflare, bots in Cloudflare's AI categories requested robots.txt 3,644 times and the sitemap 2,232 times, and llms.txt 49 times. llms.txt still matters to other readers: directories, tools, scripts and search bots requested it on every site ([research]({R})).
+- **The AI crawlers read robots.txt and the sitemap, not llms.txt.** In a week across 56 domains on Cloudflare, bots in Cloudflare's AI categories requested robots.txt 3,644 times and the sitemap 2,232 times, and llms.txt 49 times. llms.txt still matters to other readers: directories, tools, scripts and search bots requested it on every site ([research](docs/research/who-reads-discovery-files.md)).
 - **Directories crawl the well-known files; working agents call the API.** At animalhouse.ai, 4 of the 28 addresses that read llms.txt called the API ([§2](STANDARD.md#2-what-the-traffic-says)). Across the 16 sites with an API, 13% of llms.txt readers also got a successful API answer that week.
 - **Bots ask for markdown.** 12,601 requests asked for markdown at ordinary page URLs that week, 92% of them from one search engine's crawler (Exa's).
 - **A hosted MCP endpoint gets found within hours.** Seven MCP directory crawlers connected to animalhouse.ai's in its first two hours, and 14 browser visits reached it in the same two hours ([§2](STANDARD.md#2-what-the-traffic-says)).
@@ -51,7 +51,7 @@ What agents and crawlers actually ask a site for, from production logs:
 ## This repo holds
 
 - **[STANDARD.md](STANDARD.md):** what to build, item by item, each with an ID, a level and the reason it's at that level. It covers discovery files, search (SEO, and the AI answer engines that GEO and AEO are about), the API, MCP servers, skills, engagement, measurement and tests.
-- **[Who requests agent discovery files?]({R}):** the week across 56 domains, with charts, its queries and its classifier.
+- **[Who requests agent discovery files?](docs/research/who-reads-discovery-files.md):** the week across 56 domains, with charts, its queries and its classifier.
 - **`readiness-audit`:** the scorecard. It checks a live site against everything the standard can verify from outside, about 30 checks in one pass, and lists what it can't see for you to review.
 
 ## Why this one
@@ -76,7 +76,7 @@ What agents and crawlers actually ask a site for, from production logs:
 ## Score a site
 
 ```
-readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url]
+readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url] [--concurrency n]
 readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
 readiness-audit --logs <access-log> [--json]
 ```
@@ -88,17 +88,19 @@ readiness-audit --logs <access-log> [--json]
 | `--json` | print the results as JSON |
 | `--compare file` | list what changed since a previous run: a status page from `--matrix` or a saved `--json` report |
 | `--base url` | score a local or preview build as the domain before you deploy (`--base http://localhost:3000`); DNS and host redirects are skipped |
+| `--concurrency n` | send at most n requests to the site at once (default 6 for the discovery files, 4 for sitemaps and pages). Lower it for a site that slows under parallel requests; the checks are the same |
 | `--matrix` | score several sites and print a markdown status page |
 | `--recorded file` | with `--matrix`, add your recorded T5 and T6 results (format: [examples/recorded.json](examples/recorded.json)) |
 | `--logs file` | count requests for the discovery files in an exported access log (combined log format, or JSON lines from Cloudflare, Vercel or Railway), by client family. It prints counts, never addresses |
 
-It prints a pass, warning or failure for each check, with the reason, and exits with code 1 when a required check fails, so it can gate a deploy. The API checks run when `/openapi.json` or `/api` answers, or when the site declares an API (a `service-desc` link, an API catalog, an API link in llms.txt). A declared API that doesn't answer fails them. A site with neither skips them, the way a site with no hosted MCP endpoint skips the MCP checks.
+It prints a pass, warning or failure for each check, with the reason, and exits with code 1 when a required check fails, so it can gate a deploy. A warning on a required check, such as W6's heading jumps, lowers the required score ("required 14 of 15") without changing the exit code; only a failure does. The API checks run when `/openapi.json` or `/api` answers, or when the site declares an API (a `service-desc` link, an API catalog, an API link in llms.txt). A declared API that doesn't answer fails them. A site with neither skips them, the way a site with no hosted MCP endpoint skips the MCP checks.
 
 To check fixes before they ship, score a local build: `npx readiness-audit@2 example.com --base http://localhost:3000`. The site's own URLs (from its sitemap, llms.txt, skills and catalog) are requested from the base and reported under the domain. From a clone, run `node bin/readiness-audit.mjs example.com`.
 
 ### Safe to run
 
-- **It only reads:** GET requests, plus a few POSTs that create nothing (an MCP `initialize`, `server/discover` and `tools/list`, and an empty POST to `/`), about six at a time.
+- **It only reads:** GET requests, plus a few POSTs that create nothing (an MCP `initialize`, `server/discover` and `tools/list`, and an empty POST to `/`), at most six at a time. With `--matrix`, each site gets its own six.
+- **It can go slower.** A site that slows under parallel requests can be audited with `--concurrency 2`, or `--concurrency 1` for one request at a time. The same checks run, and take longer.
 - **It stays on public addresses.** It won't follow a link the site supplies (in its sitemap, share images, skills, catalog or DNS record) to a private or local address, at any redirect. `--base` may be local, because you chose it.
 - **A hostile site can't reach a decoder bug.** It asks for gzip and decodes it itself; a body in an encoding it didn't ask for, such as Brotli, is reported rather than read, and every body is capped at 16 MB.
 - **Run it only against sites you run,** or with the owner's permission. [SECURITY.md](SECURITY.md) has the details and how to report a problem.

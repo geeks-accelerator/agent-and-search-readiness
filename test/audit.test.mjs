@@ -49,6 +49,24 @@ test('the audit reports the fixture site\'s deliberate problems, and passes the 
   assert.deepEqual(Object.keys(robots.families), ['This audit (readiness-audit)']);
 });
 
+test('--concurrency caps the requests in flight, and the results stay the same', async () => {
+  const run = async (opts) => {
+    const site = await startFixture({ delay: 20 });
+    try {
+      const rep = await audit('fixture.example', { base: site.base, ...opts });
+      return { max: site.maxInFlight, results: rep.results.map((r) => [r.id, r.status]) };
+    } finally { await site.close(); }
+  };
+  const byDefault = await run({});
+  const two = await run({ concurrency: 2 });
+  const one = await run({ concurrency: 1 });
+  assert.equal(byDefault.max, 6); // the discovery files, 6 at a time
+  assert.equal(two.max, 2);
+  assert.equal(one.max, 1);
+  assert.deepEqual(two.results, byDefault.results);
+  assert.deepEqual(one.results, byDefault.results);
+});
+
 test('D7 warns about a 405 with no Allow header', async () => {
   const site = await startFixture({ allow: null });
   let rep;

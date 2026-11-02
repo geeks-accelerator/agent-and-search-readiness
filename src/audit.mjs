@@ -11,7 +11,7 @@ import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '2.3.0';
+export const VERSION = '2.4.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -105,8 +105,12 @@ export function makeGuard(domain) {
   return { siteHosts, isSafe };
 }
 
-export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
+export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency = null } = {}) {
   const BASE = `https://${domain}`;
+  // Requests in flight to the site at once. By default, 6 for the discovery files and 4 for
+  // sitemaps and pages; `concurrency` sets one limit for all of them, for a site that slows
+  // under parallel requests.
+  const limit = (byDefault) => concurrency ?? byDefault;
   const rand = Math.random().toString(36).slice(2, 10);
 
   const { siteHosts, isSafe } = makeGuard(domain);
@@ -178,7 +182,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     () => get('/', { method: 'POST', redirect: 'manual' }),
     () => get(D.legacyCard),
     () => get(D.wkCard),
-  ], 6, (job) => job());
+  ], limit(6), (job) => job());
   const catalogEntries = [...(json(ard)?.entries ?? []), ...(json(aiCatalog)?.entries ?? [])];
   const rels = linkRels(home.headers.get('link'));
   const api = apiPresence({ openapiSpec: json(openapi), apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson: ok(apiCatalog) ? json(apiCatalog) : null, llmsText: ok(llms) ? llms.text : '' });
@@ -231,7 +235,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
   // ---- The sitemap, read once for D2 and the W checks: an index is expanded to its pages ----
   const sitemapIndex = /<sitemapindex/.test(sitemap.text);
   const sitemapLists = sitemapIndex
-    ? await mapLimit(sitemapEntries(sitemap.text).slice(0, 10), 4, async (e) => sitemapEntries((await get(e.loc)).text))
+    ? await mapLimit(sitemapEntries(sitemap.text).slice(0, 10), limit(4), async (e) => sitemapEntries((await get(e.loc)).text))
     : [sitemapEntries(sitemap.text)];
   const seenLocs = new Set();
   const entries = sitemapLists.flat().filter((e) => {
@@ -258,7 +262,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     // Agents follow the links in llms.txt, so a sample of the site's own links must answer 200.
     const links = ok(llms) ? llmsLinks(llms.text, `${BASE}/llms.txt`, siteHosts) : [];
     const sample = spread(links, 10);
-    const answers = await mapLimit(sample, 4, async (u) => ({ u, r: await get(u) }));
+    const answers = await mapLimit(sample, limit(4), async (u) => ({ u, r: await get(u) }));
     llmsAnswers = answers;
     // Missing pages, server errors and no answer are broken. A 401, 403 or 405 is an endpoint that
     // exists but wants a key or another method, which is fine to list.
@@ -481,14 +485,14 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
     } else {
       // Entry URLs may be relative, and resolve against the index (RFC 3986).
       const indexUrl = `${BASE}/.well-known/agent-skills/index.json`;
-      const files = await Promise.all(sample.map(async (e) => {
+      const files = await mapLimit(sample, limit(5), async (e) => {
         const url = new URL(e.url, indexUrl).href;
         const r = await get(url);
         const fm = r.text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
         const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
         const label = typeof e.name === 'string' && e.name ? e.name : url;
         return { url, status: r.status, text: r.text, name: field('name'), description: field('description'), entryName: e.name, label, lines: r.text.split('\n').length };
-      }));
+      });
       const unreachable = files.filter((f) => f.status !== 200).map((f) => `${f.label} (${f.status})`);
       const read = files.filter((f) => f.status === 200);
       const badName = read.map((f) => [f, skillNameProblem(f)]).filter(([, why]) => why).map(([f, why]) => `${f.label} (${why})`);
@@ -553,7 +557,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         variants.push(['(none)', await get(mcpPath, { method: 'POST', headers: { 'content-type': 'application/json', accept: null }, body: INIT })]);
         const discover = await modern('server/discover', 2);
         const browser = await get(mcpPath, { headers: { accept: 'text/html' }, redirect: 'manual' });
-        const aliases = await Promise.all(['/sse', '/api/mcp'].map((p) => get(p, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json' }, body: INIT })));
+        const aliases = await mapLimit(['/sse', '/api/mcp'], limit(2), (p) => get(p, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json' }, body: INIT }));
         const problems = [];
         const refused = variants.filter(([, r]) => r.status !== 200).map(([a, r]) => `${a} → ${r.status}`);
         if (refused.length) problems.push(`2025-era initialize refused for Accept ${refused.join(', ')}`);
@@ -651,7 +655,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null } = {}) {
         ldBroken: ld.filter((x) => x === null).length, types,
       };
     };
-    const pages = await mapLimit(pick, 4, async (u) => parsePage(u, await get(u, { headers: { accept: 'text/html' } })));
+    const pages = await mapLimit(pick, limit(4), async (u) => parsePage(u, await get(u, { headers: { accept: 'text/html' } })));
     // A body the audit refused (an encoding it doesn't decode) is reported once, in W3, not as missing tags everywhere.
     const ok200 = pages.filter((p) => p.status === 200 && p.html && !p.error);
     if (ok200.length) { const sizes = ok200.map((p) => p.bytes).sort((a, b) => a - b); htmlKb = Math.round(sizes[Math.floor(sizes.length / 2)] / 1024); }
