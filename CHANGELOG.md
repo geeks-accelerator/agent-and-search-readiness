@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.0 (2026-11-02)
+
+From a review by the agents that run the scorecard daily for two projects. No scoring changes, and no new warnings or failures.
+
+- **`--concurrency <n>` sets how many requests the audit sends to a site at once,** for a site that slows under parallel requests. Without it, nothing changes: 6 at a time for the discovery files, 4 for sitemaps and pages. The limit now also covers the sampled skill files and the MCP alias probes, which went out together before. At achurch.ai, a sweep of ten requests at a time slowed the site for minutes (2026-10-12); its own checks now send at most two. The library takes it as `audit(domain, { concurrency })`.
+- **README:** documents `--concurrency` in the options and in "Safe to run", and says that a warning on a required check lowers the required score without changing the exit code (a site can show "required 14 of 15" with no FAIL line, because W6 warns). Two links to the research pointed at a placeholder; they now open [Who requests agent discovery files?](docs/research/who-reads-discovery-files.md).
+- **Plans:** the status lines of the sample-by-template, proving-the-score and dependency-updates plans say 2.0.0 is published, and keep what's still open.
+
 ## 2.3.0 (2026-10-24)
 
 From the sister project's agent, after it reviewed this one. No scoring changes.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // readiness-audit: score a live site against the Agent and Search Readiness Standard.
 //
-//   readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url]
+//   readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url] [--concurrency n]
 //   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]   (a markdown status page)
 //   readiness-audit --logs <access-log> [--json]   (who requests the discovery files)
 //
@@ -31,9 +31,15 @@ const recordedPath = valueOf('--recorded');
 const comparePath = valueOf('--compare');
 const base = valueOf('--base');
 const logsPath = valueOf('--logs');
-const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare', '--base', '--logs'].includes(args[i - 1]))
+const concurrencyOpt = valueOf('--concurrency');
+const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare', '--base', '--logs', '--concurrency'].includes(args[i - 1]))
   .map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));
-const opts = { mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp'), base: base ?? null };
+const opts = { mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp'), base: base ?? null, concurrency: null };
+if (flag('--concurrency')) {
+  const n = Number(concurrencyOpt);
+  if (!Number.isInteger(n) || n < 1) { console.error(`--concurrency needs a whole number of 1 or more, like --concurrency 2 (got ${concurrencyOpt})`); process.exit(2); }
+  opts.concurrency = n;
+}
 if (base) {
   let u;
   try { u = new URL(base); } catch { u = null; }
@@ -54,7 +60,7 @@ if (!domains.length || flag('--help') || flag('-h')) {
   console.error(`readiness-audit ${VERSION}
 
 Usage:
-  readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url]
+  readiness-audit <domain> [--mcp /path] [--no-mcp] [--json] [--compare previous] [--base url] [--concurrency n]
   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]
   readiness-audit --logs <access-log> [--json]
 
@@ -69,6 +75,10 @@ Options:
   --base url    score a local or preview build as the domain, before you
                 deploy (http://localhost:3000); DNS and host redirects are
                 skipped
+  --concurrency n
+                at most n requests to the site at once (default 6 for
+                the discovery files, 4 for sitemaps and pages); lower it
+                for a site that slows under parallel requests
   --logs f      count requests for the discovery files in an exported access
                 log (combined log format or JSON lines), by client family;
                 prints counts, never addresses

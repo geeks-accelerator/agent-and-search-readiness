@@ -49,10 +49,19 @@ function send(req, res, status, headers, body) {
   res.end(req.method === 'HEAD' ? undefined : out);
 }
 
-/** Starts the fixture on a free port: { base, log (lines), close }. */
-export async function startFixture({ allow = 'GET, HEAD' } = {}) {
+/** Starts the fixture on a free port: { base, log (lines), maxInFlight, close }.
+ *  `delay` holds each answer for that many ms, so requests overlap and maxInFlight counts them. */
+export async function startFixture({ allow = 'GET, HEAD', delay = 0 } = {}) {
   const log = [];
-  const srv = createServer((req, res) => {
+  let inFlight = 0, maxInFlight = 0;
+  const srv = createServer(async (req, res) => {
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    res.on('close', () => inFlight--);
+    if (delay) await new Promise((r) => setTimeout(r, delay));
+    handle(req, res);
+  });
+  const handle = (req, res) => {
   const path = new URL(req.url, 'http://x').pathname;
   res.on('finish', () => log.push(`127.0.0.1 - - [21/Oct/2026:12:00:00 +0000] "${req.method} ${req.url} HTTP/1.1" ${res.statusCode} 0 "-" "${req.headers['user-agent'] ?? '-'}"`));
   const html = { 'content-type': 'text/html; charset=utf-8', vary: 'Accept' };
@@ -75,7 +84,7 @@ export async function startFixture({ allow = 'GET, HEAD' } = {}) {
   if (wantsMd && path === '/docs/guide') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, '# Guide\n\n## Run it\n\nSteps.\n');
   if (pages[path]) return send(req, res, 200, { ...html, link }, pages[path]);
   return send(req, res, 404, { 'content-type': 'text/html' }, '<!doctype html><title>Not found</title><h1>Not found</h1>');
-  });
+  };
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
-  return { base: `http://localhost:${srv.address().port}`, log, close: () => new Promise((r) => { srv.closeAllConnections(); srv.close(r); }) };
+  return { base: `http://localhost:${srv.address().port}`, log, get maxInFlight() { return maxInFlight; }, close: () => new Promise((r) => { srv.closeAllConnections(); srv.close(r); }) };
 }
