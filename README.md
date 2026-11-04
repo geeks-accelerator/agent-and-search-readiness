@@ -15,7 +15,7 @@ npx readiness-audit example.com
 It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line (each supported line's current security release), and has no dependencies.
 
 ```
-Agent and search readiness: animalhouse.ai  (readiness-audit v2.5.0, 2026-11-04T02:41Z)
+Agent and search readiness: animalhouse.ai  (readiness-audit v2.6.0, 2026-11-04T22:14Z)
 
 Required
   PASS  D1   robots.txt                           1 group with consistent rules, Sitemap listed

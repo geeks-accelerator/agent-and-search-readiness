@@ -11,7 +11,7 @@ import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
 
-export const VERSION = '2.5.0';
+export const VERSION = '2.6.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -33,6 +33,7 @@ export const REVIEW = [
   ['A9', 'Retry-After on 429, documented limits'],
   ['A10', 'self-service keys, rotation, attribution'],
   ['A11', 'public and private stated honestly, one privacy filter'],
+  ['A12', 'breaking changes in a new version, the old one kept for a stated time'],
   ['M2', 'stdio package: saved key, register guard, rotate, User-Agent'],
   ['M3', 'published to npm, the MCP Registry, Smithery and Glama, one version'],
   ['S1', 'skills: triggers name the job, lasting actions say what they do, and an agent can follow them through the core loop on its own (the scorecard checks names, descriptions and links on a sample)'],

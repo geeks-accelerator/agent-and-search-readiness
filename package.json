@@ -1,6 +1,6 @@
 {
   "name": "readiness-audit",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Score a site's readiness for AI agents and search (GEO, AEO, AI SEO): llms.txt, robots.txt AI crawler rules, structured data, link previews, OpenAPI, MCP, agent skills and A2A. Read-only CLI, no account.",
   "type": "module",
   "bin": {

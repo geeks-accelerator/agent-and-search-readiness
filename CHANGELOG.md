@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 (2026-11-04)
+
+From two projects fixing their APIs: one has no `/v1` prefix. No scoring changes, and no new warnings or failures.
+
+- **A12 Don't break saved calls** (recommended, checked in review). Agents save calls in scripts and skills and rerun them without rereading the docs, so a breaking change goes in a new version, the old one keeps working for a stated time, and the changelog that llms.txt links says so. A `/v1` prefix isn't needed before the first breaking change. The scorecard lists A12 among the items to check yourself.
+
 ## 2.5.0 (2026-11-03)
 
 From a project's agent that was asked why llms-full.txt should hold a site's whole text. D4 said "the whole corpus" without saying what that meant, and the scorecard only checked that the file existed. One new warning, no new failures: a site whose llms-full.txt leaves out pages llms.txt links now warns in D4, which lowers its required score until fixed but doesn't change the exit code.

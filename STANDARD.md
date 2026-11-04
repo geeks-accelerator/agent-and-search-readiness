@@ -95,7 +95,7 @@ What it means:
 
 | If your project... | Serve | Skip |
 |---|---|---|
-| has a public HTTP API | A1 to A11: OpenAPI 3.1, `GET /api`, errors that teach, a JSON catch-all for wrong paths, forgiving input; A3 to A5 as recommended | |
+| has a public HTTP API | A1 to A11: OpenAPI 3.1, `GET /api`, errors that teach, a JSON catch-all for wrong paths, forgiving input; A3 to A5 and A12 as recommended | |
 | ships an MCP server on npm (stdio) | M1 to M3: npm, the MCP Registry, Smithery, Glama, a `/docs/mcp` page | server card, `/.well-known/mcp.json`, OAuth metadata: they describe a hosted endpoint |
 | hosts an MCP endpoint | M1 to M4: everything above plus the forgiving edge, `remotes` in `server.json`, and a DNS AID record with `p=mcp`; M5, the server card, as recommended | |
 | runs an A2A endpoint | a valid A2A v1.0 agent card | |
@@ -249,6 +249,8 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - Serve it as markdown, not as a redirect to an HTML page.
 
 **A5 The API reference as raw markdown** at `/docs/api.md` (inbed, drifts, botsmatter). Agents don't want the HTML.
+
+**A12 Don't break saved calls.** *Why: agents save calls in scripts and skills and rerun them without rereading the docs.* Make a breaking change in a new version, keep the old one working for a stated time, and say so in the changelog that llms.txt links. A `/v1` prefix isn't needed before then: unprefixed paths are version 1 until the first breaking change.
 
 **S2 Agent Skills discovery index** at `/.well-known/agent-skills/index.json`, following Cloudflare's discovery RFC v0.2.0:
 
@@ -863,6 +865,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | A9 | `Retry-After` on 429, a usage endpoint, documented limits | R | agents | review |
 | A10 | Self-service keys, rotation, attribution | R | agents | review |
 | A11 | Public and private stated honestly, one privacy filter, citations that open | R | honesty | review, test |
+| A12 | Breaking changes in a new version, the old one kept for a stated time | Rec | agents | review |
 | M1 | MCP tools: thin, generated, described, annotated, errors as results, prompts | R | agents | score (hosted), test |
 | M2 | Stdio package: saved key, register guard, rotate, User-Agent, mcpName | R | agents | review, test |
 | M3 | Published to npm, the MCP Registry, Smithery and Glama, one version | R | discovery | test |
