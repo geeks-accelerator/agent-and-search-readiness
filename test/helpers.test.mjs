@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -301,4 +301,34 @@ test('richResultPages lists every template with rich-result markup, and static p
     ['https://e.com/guide', 'Article+Breadcrumb'],
   ]);
   assert.equal(pages[3].test, 'https://search.google.com/test/rich-results?url=https%3A%2F%2Fe.com%2Fguide');
+});
+
+test('safeUrl returns null for what isn\'t a URL, instead of throwing', () => {
+  assert.equal(safeUrl('http://['), null);
+  assert.equal(safeUrl('/a', 'https://example.com/b').href, 'https://example.com/a');
+});
+
+test('robotsAllowed matches the way RFC 9309 says: the longest rule wins, Allow on a tie, with * and $', () => {
+  const rules = [{ allow: false, path: '/api' }, { allow: true, path: '/api/public' }, { allow: false, path: '/*.pdf$' }];
+  assert.equal(robotsAllowed(rules, '/api/me'), false);
+  assert.equal(robotsAllowed(rules, '/api/public/x'), true);
+  assert.equal(robotsAllowed(rules, '/docs/a.pdf'), false);
+  assert.equal(robotsAllowed(rules, '/docs/a.pdf?x'), true); // $ anchors the end
+  assert.equal(robotsAllowed(rules, '/about'), true);
+  assert.equal(robotsAllowed([{ allow: false, path: '/a' }, { allow: true, path: '/a' }], '/a'), true);
+});
+
+test('robotsLeaks: a named group may be stricter than *, never looser', () => {
+  const leaks = (text) => robotsLeaks(robotsGroups(text));
+  const star = 'User-agent: *\nDisallow: /admin\nDisallow: /api\n\n';
+  assert.deepEqual(leaks(`${star}User-agent: BadBot\nDisallow: /\n`), []); // / covers everything
+  assert.deepEqual(leaks(`${star}User-agent: GPTBot\nDisallow: /admin\nDisallow: /api\nDisallow: /drafts\n`), []);
+  assert.deepEqual(leaks('User-agent: *\nDisallow: /api/me\n\nUser-agent: GPTBot\nDisallow: /api\n'), []); // /api covers /api/me
+  assert.deepEqual(leaks(`${star}User-agent: GPTBot\nDisallow: /admin\n`), ['gptbot skips Disallow /api']);
+  assert.deepEqual(leaks(`${star}User-agent: GPTBot\nDisallow: /\nAllow: /api/me\n`), ['gptbot reopens /api/me with Allow, which * disallows']);
+  // Groups for the same agent combine (RFC 9309 §2.2.1), * included.
+  assert.deepEqual(leaks('User-agent: *\nDisallow: /admin\n\nUser-agent: GPTBot\nDisallow: /admin\n\nUser-agent: *\nDisallow: /api\n'), ['gptbot skips Disallow /api']);
+  assert.deepEqual(leaks('User-agent: *\nDisallow: /admin\n\nUser-agent: GPTBot\nDisallow: /admin\n\nUser-agent: GPTBot\nDisallow: /api\n\nUser-agent: *\nDisallow: /api\n'), []);
+  // One group naming * and every crawler is the simplest setup.
+  assert.deepEqual(leaks('User-agent: *\nUser-agent: GPTBot\nDisallow: /admin\n'), []);
 });

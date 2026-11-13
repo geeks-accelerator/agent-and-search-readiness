@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks } from './helpers.mjs';
 
 export const VERSION = '2.6.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -225,35 +225,13 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   const api = apiPresence({ openapiSpec: json(openapi), apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson: ok(apiCatalog) ? json(apiCatalog) : null, llmsText: ok(llms) ? llms.text : '' });
 
   // ---- D1 robots.txt (required) and D15 AI crawlers and Content-Signal (recommended) ----
-  const groups = [];
-  let sitemapLine = false;
-  if (ok(robots)) {
-    let cur = null, lastUa = false;
-    for (const raw of robots.text.split('\n')) {
-      const line = raw.split('#')[0].trim();
-      const i = line.indexOf(':');
-      if (i < 0) continue;
-      const k = line.slice(0, i).trim().toLowerCase();
-      const v = line.slice(i + 1).trim();
-      if (k === 'user-agent') {
-        if (!lastUa) { cur = { agents: [], disallow: new Set(), signal: false }; groups.push(cur); }
-        cur.agents.push(v.toLowerCase());
-        lastUa = true;
-        continue;
-      }
-      lastUa = false;
-      if (k === 'sitemap') sitemapLine = true;
-      if (!cur) continue;
-      if (k === 'disallow' && v) cur.disallow.add(v);
-      if (k === 'content-signal') cur.signal = true;
-    }
-  }
+  const groups = ok(robots) ? robotsGroups(robots.text) : [];
+  const sitemapLine = ok(robots) && /^\s*sitemap\s*:/im.test(robots.text);
   {
     const id = 'D1', name = 'robots.txt', level = 'required';
-    const star = groups.find((g) => g.agents.includes('*'));
-    const leaks = star ? groups.filter((g) => g !== star).flatMap((g) => [...star.disallow].filter((d) => !g.disallow.has(d)).map((d) => `${g.agents[0]} skips Disallow ${d}`)) : [];
+    const leaks = robotsLeaks(groups);
     if (!ok(robots)) miss(id, name, level, `/robots.txt answered ${robots.status}${cached(robots)}`);
-    else if (leaks.length) miss(id, name, level, `named groups drop rules from the * group (a crawler obeys only its own group): ${list([...new Set(leaks)], '; ')}${cached(robots)}`);
+    else if (leaks.length) miss(id, name, level, `named groups drop rules from the * group (a crawler obeys only its own group): ${list(leaks, '; ')}${cached(robots)}`);
     else if (!sitemapLine) miss(id, name, level, `no Sitemap line${cached(robots)}`);
     else pass(id, name, level, `${groups.length} group${groups.length === 1 ? '' : 's'} with consistent rules, Sitemap listed`);
   }

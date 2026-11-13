@@ -8,6 +8,7 @@
 //   /old         llms.txt links it; it 301s to /about         -> D4 warns
 //   /privacy     llms.txt links it; llms-full.txt doesn't      -> D4 warns
 //   /mapped      llms.txt links it; it 302s to this server at [::ffff:127.0.0.1] -> refused, D4 warns
+// robots.txt blocks BadBot entirely, which is stricter than *, so D1 still passes.
 // Everything else is meant to pass. Each request is logged in combined format, for --logs.
 import { createServer } from 'node:http';
 import { gzipSync, brotliCompressSync } from 'node:zlib';
@@ -76,7 +77,7 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed =
   const wantsMd = /text\/markdown/.test(req.headers.accept ?? '');
 
   if (req.method === 'POST' && path === '/') return send(req, res, 405, { 'content-type': 'application/json', ...(allow ? { allow } : {}) }, '{"error":"method_not_allowed","next_steps":["GET /llms.txt"]}');
-  if (path === '/robots.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, ['User-agent: *', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '', ...['GPTBot', 'ClaudeBot', 'PerplexityBot'].flatMap((b) => [`User-agent: ${b}`, 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '']), `Sitemap: ${D}/sitemap.xml`].join('\n'));
+  if (path === '/robots.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, ['User-agent: *', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '', ...['GPTBot', 'ClaudeBot', 'PerplexityBot'].flatMap((b) => [`User-agent: ${b}`, 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '']), 'User-agent: BadBot', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /', '', `Sitemap: ${D}/sitemap.xml`].join('\n'));
   if (path === '/sitemap.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, `<?xml version="1.0"?><sitemapindex><sitemap><loc>${D}/sitemap-static.xml</loc><lastmod>2026-01-01</lastmod></sitemap><sitemap><loc>${D}/sitemap-items.xml</loc><lastmod>2026-01-01</lastmod></sitemap></sitemapindex>`);
   if (path === '/sitemap-static.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap([...staticPaths, ...extra]));
   if (path === '/sitemap-items.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(items.map((id) => `/items/${id}`)));

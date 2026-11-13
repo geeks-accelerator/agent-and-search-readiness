@@ -50,6 +50,64 @@ export function safeUrl(href, base) {
   try { return new URL(href, base); } catch { return null; }
 }
 
+/**
+ * robots.txt as groups: { agents (lowercase), rules: [{ allow, path }], signal }, in file order.
+ * A run of User-agent lines starts one group; an empty Disallow allows everything, so it adds no rule.
+ */
+export function robotsGroups(text) {
+  const groups = [];
+  let cur = null, lastUa = false;
+  for (const raw of String(text ?? '').split('\n')) {
+    const line = raw.split('#')[0].trim();
+    const i = line.indexOf(':');
+    if (i < 0) continue;
+    const k = line.slice(0, i).trim().toLowerCase();
+    const v = line.slice(i + 1).trim();
+    if (k === 'user-agent') {
+      if (!lastUa) { cur = { agents: [], rules: [], signal: false }; groups.push(cur); }
+      cur.agents.push(v.toLowerCase());
+      lastUa = true;
+      continue;
+    }
+    lastUa = false;
+    if (!cur) continue;
+    if ((k === 'disallow' || k === 'allow') && v) cur.rules.push({ allow: k === 'allow', path: v });
+    if (k === 'content-signal') cur.signal = true;
+  }
+  return groups;
+}
+
+/** Whether rules let a crawler fetch path (RFC 9309 §2.2.2): the longest match wins, Allow on a tie, * and $ as wildcards. */
+export function robotsAllowed(rules, path) {
+  let best = null;
+  for (const r of rules) {
+    const re = new RegExp(`^${r.path.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$')}`); // only a final $ anchors
+    if (!re.test(path)) continue;
+    if (!best || r.path.length > best.path.length || (r.path.length === best.path.length && r.allow)) best = r;
+  }
+  return !best || best.allow;
+}
+
+/**
+ * Where a named crawler's rules let it fetch what * disallows. A crawler obeys only the groups that
+ * name it (RFC 9309 §2.2.1, which combines groups for the same agent), so a named group must block
+ * everything * blocks. Stricter is fine: Disallow / covers /admin. A rule with wildcards is tested
+ * as its literal text (/*.pdf$ as /.pdf).
+ */
+export function robotsLeaks(groups) {
+  const rulesFor = (agent) => groups.filter((g) => g.agents.includes(agent)).flatMap((g) => g.rules);
+  const star = rulesFor('*');
+  if (!groups.some((g) => g.agents.includes('*'))) return [];
+  const literal = (p) => p.replace(/\$$/, '').replace(/\*/g, '');
+  const leaks = [];
+  for (const agent of [...new Set(groups.flatMap((g) => g.agents))].filter((a) => a !== '*')) {
+    const own = rulesFor(agent);
+    for (const d of star.filter((r) => !r.allow)) if (robotsAllowed(own, literal(d.path))) leaks.push(`${agent} skips Disallow ${d.path}`);
+    for (const a of own.filter((r) => r.allow)) if (!robotsAllowed(star, literal(a.path)) && robotsAllowed(own, literal(a.path))) leaks.push(`${agent} reopens ${a.path} with Allow, which * disallows`);
+  }
+  return [...new Set(leaks)];
+}
+
 /** A URL for comparison: lowercase host, no trailing slash, no fragment. The query stays. */
 export function norm(u) {
   try { const x = new URL(u); return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '') || '/'}${x.search}`; } catch { return u; }
