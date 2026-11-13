@@ -7,6 +7,7 @@
 // tools/list, an empty POST to /). Node 22, 24 or 26 at its security release, no dependencies.
 
 import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
+import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
@@ -45,21 +46,40 @@ export const REVIEW = [
   ['T5', 'agent usability test: a fresh agent, only the domain and a goal; report its first-try success rate'],
 ];
 
-// Loopback, private, shared, link-local and unique-local addresses. A site's own content (its sitemap,
-// share images, skills, catalog, DNS record) must not send the auditor there.
+// Loopback, private, shared, link-local, unique-local, benchmarking, multicast and reserved
+// addresses, and IPv4 ones carried inside IPv6. A site's own content (its sitemap, share images,
+// skills, catalog, DNS record) must not send the auditor there.
 export function isPrivateAddress(ip) {
   if (isIP(ip) === 4) {
     const [a, b] = ip.split('.').map(Number);
     return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
-      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
   }
   if (isIP(ip) === 6) {
-    const x = ip.toLowerCase();
-    if (x === '::' || x === '::1') return true;
-    if (x.startsWith('::ffff:')) return isPrivateAddress(x.slice(7));
-    return /^f[cd]/.test(x) || /^fe[89ab]/.test(x);
+    const x = ipv6Bytes(ip);
+    const v4 = (i) => x.slice(i, i + 4).join('.');
+    const zeros = (from, to) => x.slice(from, to).every((n) => n === 0);
+    if (zeros(0, 16) || (zeros(0, 15) && x[15] === 1)) return true; // :: and ::1
+    // The URL parser writes ::ffff:127.0.0.1 as ::ffff:7f00:1, so read the bytes, not the text.
+    if (zeros(0, 10) && x[10] === 0xff && x[11] === 0xff) return isPrivateAddress(v4(12)); // IPv4-mapped
+    if (zeros(0, 12)) return isPrivateAddress(v4(12)); // IPv4-compatible
+    if (x[0] === 0 && x[1] === 0x64 && x[2] === 0xff && x[3] === 0x9b && (zeros(4, 12) || x[4] === 0 && x[5] === 1)) return isPrivateAddress(v4(12)); // NAT64 (64:ff9b::/96, and 64:ff9b:1::/48 for local use)
+    if (x[0] === 0x20 && x[1] === 0x02) return isPrivateAddress(v4(2)); // 6to4
+    return (x[0] & 0xfe) === 0xfc || (x[0] === 0xfe && (x[1] & 0xc0) === 0x80) || x[0] === 0xff; // unique-local, link-local, multicast
   }
   return false;
+}
+
+// An IPv6 address as its 16 bytes. Accepts :: and a dotted IPv4 tail; a zone (%eth0) is dropped.
+function ipv6Bytes(ip) {
+  let s = ip.toLowerCase().replace(/%.*$/, '');
+  const tail = s.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (tail) { const [a, b, c, d] = tail[1].split('.').map(Number); s = s.slice(0, -tail[1].length) + `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`; }
+  const [head, rest] = s.split('::');
+  const part = (t) => (t ? t.split(':') : []);
+  const left = part(head), right = rest === undefined ? [] : part(rest);
+  const groups = rest === undefined ? left : [...left, ...Array(8 - left.length - right.length).fill('0'), ...right];
+  return groups.flatMap((g) => { const n = parseInt(g, 16); return [n >> 8, n & 0xff]; });
 }
 
 // Run fn over items with at most `limit` in flight, so the audit doesn't hammer a site.
@@ -87,6 +107,9 @@ async function resolveTxtFresh(name) {
 
 // Which URLs the audit may request. The site you chose to audit (and its www or bare variant) is
 // always allowed; anything else must be a public http(s) address, checked again at every redirect hop.
+// isSafe gives a clear refusal up front; connectLookup checks the addresses the request actually
+// connects to, so a name that resolves to a public address for the check and a private one for the
+// connection (DNS rebinding) is still refused.
 export function makeGuard(domain) {
   const siteHosts = new Set([domain, domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`]);
   const hostCache = new Map();
@@ -99,11 +122,21 @@ export function makeGuard(domain) {
     if (host === 'localhost' || /\.(localhost|local|internal)$/.test(host)) return false;
     if (isIP(host)) return !isPrivateAddress(host);
     if (!hostCache.has(host)) {
-      hostCache.set(host, lookup(host, { all: true }).then((addrs) => addrs.every((a) => !isPrivateAddress(a.address)), () => true));
+      // A name that doesn't resolve isn't known to be public, so it isn't safe.
+      hostCache.set(host, lookup(host, { all: true }).then((addrs) => addrs.length > 0 && addrs.every((a) => !isPrivateAddress(a.address)), () => false));
     }
     return hostCache.get(host);
   }
-  return { siteHosts, isSafe };
+  // The lookup option of http(s).request: resolve, then refuse if any address is private.
+  function connectLookup(hostname, options, callback) {
+    dnsLookup(hostname, { ...options, all: true }, (err, addrs) => {
+      if (err) return callback(err);
+      if (!addrs.length || addrs.some((a) => isPrivateAddress(a.address))) return callback(new Error(`refused: ${hostname} resolves to a private address`));
+      if (options.all) return callback(null, addrs);
+      return callback(null, addrs[0].address, addrs[0].family);
+    });
+  }
+  return { siteHosts, isSafe, connectLookup };
 }
 
 export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency = null } = {}) {
@@ -114,7 +147,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   const limit = (byDefault) => concurrency ?? byDefault;
   const rand = Math.random().toString(36).slice(2, 10);
 
-  const { siteHosts, isSafe } = makeGuard(domain);
+  const { siteHosts, isSafe, connectLookup } = makeGuard(domain);
   // --base scores a local or preview build as the domain: the site's URLs are requested from the
   // base (which may be a local address, because you chose it) and reported under the domain.
   const { baseOrigin, toBase, fromBase } = baseMapper(domain, base);
@@ -126,7 +159,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     for (let hop = 0; ; hop++) {
       const target = toBase(url);
       if (target === url && !(await isSafe(url))) return { status: 0, headers: new Headers(), text: '', url, type: '', error: 'refused: not a public address' };
-      const res = await request(target, { method: m, body: b, headers, userAgent: UA });
+      // The site's own hosts and the --base you chose may be local; anything else is checked again at connect time.
+      const res = await request(target, { method: m, body: b, headers, userAgent: UA, lookup: target === url && !siteHosts.has(new URL(url).hostname) ? connectLookup : undefined });
       const loc = res.headers.get('location');
       if (redirect === 'follow' && res.status >= 300 && res.status < 400 && loc && hop < 5) {
         url = fromBase(new URL(loc, target).href);

@@ -19,9 +19,11 @@ export const MAX_BYTES = 16 * 1024 * 1024;
  * `accept-encoding: gzip, deflate`; a header set to null isn't sent (M4's no-Accept probe).
  * Resolves, never rejects: { status, headers (a Headers object), text, error?, tooBig? }, status 0
  * on no answer. tooBig: the body passed maxBytes, raw or decoded; reading stopped and the text is empty.
+ * lookup: passed to http(s).request, so the caller can refuse the addresses a name resolves to.
  */
-export function request(url, { method = 'GET', headers = {}, body, userAgent, timeoutMs = TIMEOUT_MS, maxBytes = MAX_BYTES } = {}) {
-  const target = new URL(url);
+export function request(url, { method = 'GET', headers = {}, body, userAgent, timeoutMs = TIMEOUT_MS, maxBytes = MAX_BYTES, lookup } = {}) {
+  let target;
+  try { target = new URL(url); } catch { return Promise.resolve({ status: 0, headers: new Headers(), text: '', error: `not a URL: ${String(url).slice(0, 100)}` }); }
   const send = target.protocol === 'http:' ? httpRequest : httpsRequest;
   const all = { 'user-agent': userAgent, accept: '*/*', 'accept-encoding': 'gzip, deflate', ...headers };
   if (body !== undefined) all['content-length'] = Buffer.byteLength(body);
@@ -33,7 +35,12 @@ export function request(url, { method = 'GET', headers = {}, body, userAgent, ti
   return new Promise((resolve) => {
     let settled = false;
     const done = (out) => { if (!settled) { settled = true; resolve(out); } };
-    const req = send(target, { method, headers: sent, signal: AbortSignal.timeout(timeoutMs) }, (res) => {
+    let req;
+    try { req = send(target, { method, headers: sent, signal: AbortSignal.timeout(timeoutMs), ...(lookup ? { lookup } : {}) }, onResponse); }
+    catch (e) { return done(failed(e)); } // a header value the site supplied that http can't send, say
+    req.on('error', (e) => done(failed(e)));
+    req.end(body);
+    function onResponse(res) {
       const chunks = [];
       let size = 0;
       res.on('data', (c) => {
@@ -63,8 +70,6 @@ export function request(url, { method = 'GET', headers = {}, body, userAgent, ti
         }
         done(out);
       });
-    });
-    req.on('error', (e) => done(failed(e)));
-    req.end(body);
+    }
   });
 }

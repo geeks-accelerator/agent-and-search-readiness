@@ -2,7 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { VERSION, REVIEW, score, matrix, isPrivateAddress, makeGuard } from '../src/audit.mjs';
+import { request } from '../src/http.mjs';
 import { NODE_LINES, NODE_REQUIREMENT, nodeOk } from '../src/helpers.mjs';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -105,10 +107,13 @@ test('each check runs at the level the standard checklist gives it', () => {
 });
 
 test('private and local addresses are recognized, public ones are not', () => {
-  for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1']) {
+  for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1',
+    // IPv4 inside IPv6, in the hex form the URL parser writes: mapped, compatible, NAT64, 6to4
+    '::ffff:7f00:1', '::ffff:a9fe:a9fe', '::7f00:1', '64:ff9b::7f00:1', '64:ff9b::a9fe:a9fe', '2002:a9fe:a9fe::1',
+    '198.18.0.1', '198.19.255.255', '224.0.0.1', '240.0.0.1', '255.255.255.255', 'ff02::1']) {
     assert.equal(isPrivateAddress(ip), true, ip);
   }
-  for (const ip of ['8.8.8.8', '1.1.1.1', '172.32.0.1', '100.128.0.1', '2606:4700::1111', 'example.com']) {
+  for (const ip of ['8.8.8.8', '1.1.1.1', '172.32.0.1', '100.128.0.1', '198.20.0.1', '2606:4700::1111', '::ffff:808:808', '64:ff9b::808:808', '2002:808:808::1', 'example.com']) {
     assert.equal(isPrivateAddress(ip), false, ip);
   }
 });
@@ -118,7 +123,18 @@ test('the audit refuses URLs a site supplies that point at private or local addr
   for (const url of ['https://example.com/sitemap.xml', 'http://example.com/', 'https://www.example.com/page']) {
     assert.equal(await isSafe(url), true, url);
   }
-  for (const url of ['http://localhost:8080/', 'https://169.254.169.254/latest/meta-data/', 'https://10.0.0.5/', 'http://[::1]/', 'https://printer.local/', 'ftp://example.org/', 'file:///etc/passwd', 'not a url']) {
+  for (const url of ['http://localhost:8080/', 'https://169.254.169.254/latest/meta-data/', 'https://10.0.0.5/', 'http://[::1]/', 'https://printer.local/', 'ftp://example.org/', 'file:///etc/passwd', 'not a url',
+    'http://[::ffff:127.0.0.1]/', 'http://[::ffff:169.254.169.254]/', 'http://198.18.0.1/', 'http://[64:ff9b::7f00:1]/', 'http://no-such-host.invalid/']) {
     assert.equal(await isSafe(url), false, url);
   }
+});
+
+test('the guard checks the address it connects to, not only the one it looked up first', async () => {
+  const { connectLookup } = makeGuard('example.com');
+  const srv = createServer((req, res) => res.end('reached'));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const r = await request(`http://localhost:${srv.address().port}/`, { lookup: connectLookup });
+  await new Promise((r2) => { srv.closeAllConnections(); srv.close(r2); });
+  assert.equal(r.status, 0);
+  assert.match(r.error, /refused: localhost resolves to a private address/);
 });

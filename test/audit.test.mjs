@@ -20,6 +20,7 @@ test('the audit reports the fixture site\'s deliberate problems, and passes the 
   // Each deliberate problem, reported once, where it belongs.
   assert.equal(status('D4'), 'warn');
   assert.match(by.D4.detail, /\/old → \/about/);
+  assert.match(by.D4.detail, /\/mapped \(no answer\)/); // the redirect to loopback in IPv6 form was refused
   assert.match(by.D4.detail, /llms-full\.txt doesn't list: \/privacy \(1 of 4 sampled pages\)/);
   assert.equal(status('W3'), 'fail');
   assert.match(by.W3.detail, /\/brotli \(refused: br body\)/);
