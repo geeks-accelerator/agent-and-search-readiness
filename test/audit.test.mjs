@@ -77,3 +77,14 @@ test('D7 warns about a 405 with no Allow header', async () => {
   assert.equal(d7.status, 'warn');
   assert.match(d7.detail, /no Allow header/);
 });
+
+test('URLs in site content that aren\'t URLs are reported, and the audit finishes', async () => {
+  const site = await startFixture({ malformed: true });
+  let rep;
+  try { rep = await audit('fixture.example', { base: site.base }); } finally { await site.close(); }
+  const by = Object.fromEntries(rep.results.map((r) => [r.id, r]));
+  assert.equal(by.W2.status, 'fail');
+  assert.match(by.W2.detail, /canonical that isn't a URL on \/malformed/);
+  assert.match(by.W5.detail, /share images that don't load: .*http:\/\/\[ \(not a URL\)/);
+  assert.match(by.W3.detail, /\/bad-location \(301, redirect Location isn't a URL: http:\/\/\[\)/);
+});

@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl } from './helpers.mjs';
 
 export const VERSION = '2.6.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -160,10 +160,12 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       const target = toBase(url);
       if (target === url && !(await isSafe(url))) return { status: 0, headers: new Headers(), text: '', url, type: '', error: 'refused: not a public address' };
       // The site's own hosts and the --base you chose may be local; anything else is checked again at connect time.
-      const res = await request(target, { method: m, body: b, headers, userAgent: UA, lookup: target === url && !siteHosts.has(new URL(url).hostname) ? connectLookup : undefined });
+      const res = await request(target, { method: m, body: b, headers, userAgent: UA, lookup: target === url && !siteHosts.has(safeUrl(url)?.hostname) ? connectLookup : undefined });
       const loc = res.headers.get('location');
       if (redirect === 'follow' && res.status >= 300 && res.status < 400 && loc && hop < 5) {
-        url = fromBase(new URL(loc, target).href);
+        const next = safeUrl(loc, target);
+        if (!next) return { ...res, url, type: res.headers.get('content-type') ?? '', error: `redirect Location isn't a URL: ${loc.slice(0, 100)}` };
+        url = fromBase(next.href);
         if (res.status !== 307 && res.status !== 308) { m = 'GET'; b = undefined; }
         continue;
       }
@@ -531,7 +533,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       // Entry URLs may be relative, and resolve against the index (RFC 3986).
       const indexUrl = `${BASE}/.well-known/agent-skills/index.json`;
       const files = await mapLimit(sample, limit(5), async (e) => {
-        const url = new URL(e.url, indexUrl).href;
+        const url = safeUrl(e.url, indexUrl)?.href;
+        if (!url) return { url: e.url, status: 'not a URL', text: '', label: typeof e.name === 'string' && e.name ? e.name : e.url };
         const r = await get(url);
         const fm = r.text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
         const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
@@ -734,7 +737,9 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         const id = 'W2', name = 'Canonical URLs', level = 'required';
         const none = ok200.filter((p) => !p.canonicals.length).map((p) => short(p.url));
         const many = ok200.filter((p) => new Set(p.canonicals).size > 1).map((p) => short(p.url));
-        const elsewhere = ok200.filter((p) => p.canonicals.length && norm(new URL(p.canonicals[0], p.url).href) !== norm(p.url)).map((p) => `${short(p.url)} → ${short(new URL(p.canonicals[0], p.url).href)}`);
+        const canonical = (p) => safeUrl(p.canonicals[0], p.url)?.href;
+        const notUrl = ok200.filter((p) => p.canonicals.length && !canonical(p)).map((p) => short(p.url));
+        const elsewhere = ok200.filter((p) => p.canonicals.length && canonical(p) && norm(canonical(p)) !== norm(p.url)).map((p) => `${short(p.url)} → ${short(canonical(p))}`);
         const origin = new URL(BASE).origin;
         // Count only the hops it takes to reach the canonical host; a later path redirect (a language prefix, say) isn't a host hop.
         const hostHops = async (start) => {
@@ -745,7 +750,9 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
             if (!r.status) return n === 0 ? null : { n, end: url };
             const loc = r.headers.get('location');
             if (r.status < 300 || r.status >= 400 || !loc) return { n, end: url };
-            url = new URL(loc, url).href;
+            const next = safeUrl(loc, url);
+            if (!next) return { n, end: url };
+            url = next.href;
           }
           return { n: 5, end: url };
         };
@@ -760,6 +767,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         const problems = [];
         if (none.length) problems.push(`no canonical on ${list(none)}`);
         if (many.length) problems.push(`conflicting canonicals on ${list(many)}`);
+        if (notUrl.length) problems.push(`canonical that isn't a URL on ${list(notUrl)}`);
         if (elsewhere.length) problems.push(`sitemap URLs canonical to another URL: ${list(elsewhere)}`);
         problems.push(...hostProblems);
         if (problems.length) miss(id, name, level, problems.join('; '));
@@ -768,7 +776,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       // W3 only indexable pages in the sitemap; real 404s
       {
         const id = 'W3', name = 'Indexable pages only', level = 'required';
-        const broken = pages.filter((p) => p.status !== 200).map((p) => `${short(p.url)} (${p.status})`);
+        const broken = pages.filter((p) => p.status !== 200).map((p) => `${short(p.url)} (${p.status}${p.error ? `, ${p.error}` : ''})`);
         const moved = pages.filter((p) => p.status === 200 && norm(p.finalUrl) !== norm(p.url)).map((p) => `${short(p.url)} → ${short(p.finalUrl)}`);
         const noindex = ok200.filter((p) => /noindex/.test(p.robots)).map((p) => short(p.url));
         // A missing item under each template: a detail route is where a loading boundary or a fallback answers 200.
@@ -823,8 +831,10 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         const images = [...new Set(ok200.map((p) => p.og.image).filter(Boolean))].slice(0, 3);
         const badImages = [];
         for (const img of images) {
-          const r = await get(new URL(img, BASE).href);
-          if (!(r.status === 200 && /^image\//.test(r.type))) badImages.push(`${short(new URL(img, BASE).href)} (${r.status} ${ct(r)})`);
+          const u = safeUrl(img, BASE)?.href;
+          if (!u) { badImages.push(`${img.slice(0, 100)} (not a URL)`); continue; }
+          const r = await get(u);
+          if (!(r.status === 200 && /^image\//.test(r.type))) badImages.push(`${short(u)} (${r.status} ${ct(r)})`);
         }
         const problems = [];
         if (missingOg.length) problems.push(`missing og:title, og:description or og:image on ${list(missingOg)}`);

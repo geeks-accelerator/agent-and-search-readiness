@@ -5,11 +5,12 @@
 //   readiness-audit --matrix <domain> <domain> ... [--recorded results.json]   (a markdown status page)
 //   readiness-audit --logs <access-log> [--json]   (who requests the discovery files)
 //
-// Exits 1 when a required check fails, so it can gate a deploy.
+// Exits 1 when a required check fails, so it can gate a deploy, and 2 when it couldn't run
+// (a bad option, an unreadable file, or an error in the audit itself).
 
 import { readFileSync, createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { audit, matrix, score, LEVELS, REVIEW, VERSION } from '../src/audit.mjs';
+import { audit, matrix, score, LEVELS, REVIEW, VERSION, REPO } from '../src/audit.mjs';
 import { parsePrevious, compareResults, formatComparison, nodeOk, NODE_REQUIREMENT } from '../src/helpers.mjs';
 import { logTally, formatLogs } from '../src/logs.mjs';
 
@@ -88,46 +89,52 @@ an API (a service-desc link, an API catalog, an API link in llms.txt).`);
   process.exit(domains.length ? 0 : 2);
 }
 
-if (flag('--matrix')) {
-  if (comparePath || base) console.error('--compare and --base work with a single domain; ignoring them for --matrix.');
-  opts.base = null;
-  let recorded = {};
-  if (recordedPath) {
-    try { recorded = JSON.parse(readFileSync(recordedPath, 'utf8')); }
-    catch (e) { console.error(`Couldn't read ${recordedPath}: ${e.message}`); process.exit(2); }
-  }
-  const reports = await Promise.all(domains.map((d) => audit(d, opts)));
-  const pinned = `readiness-audit@${VERSION.split('.')[0]}`; // the major version, as STANDARD.md §14 says to pin it
-  console.log(matrix(reports, `npx ${pinned} --matrix ${domains.join(' ')}${recordedPath ? ` --recorded ${recordedPath}` : ''}`, recorded));
-} else {
-  let previous = null;
-  if (comparePath) {
-    let text;
-    try { text = readFileSync(comparePath, 'utf8'); }
-    catch (e) { console.error(`Couldn't read ${comparePath}: ${e.message}`); process.exit(2); }
-    previous = parsePrevious(text, domains[0]);
-    if (!previous) { console.error(`${comparePath} has no results for ${domains[0]}`); process.exit(2); }
-  }
-  const rep = await audit(domains[0], opts);
-  const since = previous ? `${previous.date ?? 'the previous run'} (${comparePath})` : null;
-  const changes = previous ? compareResults(previous.results, rep.results) : null;
-  if (flag('--json')) console.log(JSON.stringify(changes ? { ...rep, changes: { since: previous.date, ...changes } } : rep, null, 2));
-  else {
-    const label = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', skip: 'skip' };
-    console.log(`Agent and search readiness: ${rep.domain}${rep.base ? ` via ${rep.base}` : ''}  (readiness-audit v${VERSION}, ${rep.checked_at.slice(0, 16)}Z)`);
-    for (const level of LEVELS) {
-      const rows = rep.results.filter((r) => r.level === level);
-      if (!rows.length) continue;
-      console.log(`\n${{ required: 'Required', recommended: 'Recommended', next: 'Next level' }[level]}`);
-      for (const r of rows) console.log(`  ${label[r.status]}  ${r.id.padEnd(4)} ${r.name.padEnd(36)} ${r.detail}`);
+// An error in the audit is exit 2, not 1, so CI can tell it apart from a failing site.
+try {
+  if (flag('--matrix')) {
+    if (comparePath || base) console.error('--compare and --base work with a single domain; ignoring them for --matrix.');
+    opts.base = null;
+    let recorded = {};
+    if (recordedPath) {
+      try { recorded = JSON.parse(readFileSync(recordedPath, 'utf8')); }
+      catch (e) { console.error(`Couldn't read ${recordedPath}: ${e.message}`); process.exit(2); }
     }
-    console.log(`\nScore on ${rep.checked_at.slice(0, 10)}: required ${score(rep.results, 'required')}, recommended ${score(rep.results, 'recommended')}, next level ${score(rep.results, 'next')}`);
-    if (changes) console.log(`\n${formatComparison(changes, since).join('\n')}`);
-    console.log('\nNot scored, so check these yourself:');
-    for (const [id, what] of REVIEW) {
-      console.log(`  ${id.padEnd(6)} ${what}`);
-      if (id === 'W4') for (const p of rep.rich_results_test ?? []) console.log(`         ${p.url} (${p.features.join(', ')})\n           ${p.test}`);
+    const reports = await Promise.all(domains.map((d) => audit(d, opts)));
+    const pinned = `readiness-audit@${VERSION.split('.')[0]}`; // the major version, as STANDARD.md §14 says to pin it
+    console.log(matrix(reports, `npx ${pinned} --matrix ${domains.join(' ')}${recordedPath ? ` --recorded ${recordedPath}` : ''}`, recorded));
+  } else {
+    let previous = null;
+    if (comparePath) {
+      let text;
+      try { text = readFileSync(comparePath, 'utf8'); }
+      catch (e) { console.error(`Couldn't read ${comparePath}: ${e.message}`); process.exit(2); }
+      previous = parsePrevious(text, domains[0]);
+      if (!previous) { console.error(`${comparePath} has no results for ${domains[0]}`); process.exit(2); }
     }
+    const rep = await audit(domains[0], opts);
+    const since = previous ? `${previous.date ?? 'the previous run'} (${comparePath})` : null;
+    const changes = previous ? compareResults(previous.results, rep.results) : null;
+    if (flag('--json')) console.log(JSON.stringify(changes ? { ...rep, changes: { since: previous.date, ...changes } } : rep, null, 2));
+    else {
+      const label = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', skip: 'skip' };
+      console.log(`Agent and search readiness: ${rep.domain}${rep.base ? ` via ${rep.base}` : ''}  (readiness-audit v${VERSION}, ${rep.checked_at.slice(0, 16)}Z)`);
+      for (const level of LEVELS) {
+        const rows = rep.results.filter((r) => r.level === level);
+        if (!rows.length) continue;
+        console.log(`\n${{ required: 'Required', recommended: 'Recommended', next: 'Next level' }[level]}`);
+        for (const r of rows) console.log(`  ${label[r.status]}  ${r.id.padEnd(4)} ${r.name.padEnd(36)} ${r.detail}`);
+      }
+      console.log(`\nScore on ${rep.checked_at.slice(0, 10)}: required ${score(rep.results, 'required')}, recommended ${score(rep.results, 'recommended')}, next level ${score(rep.results, 'next')}`);
+      if (changes) console.log(`\n${formatComparison(changes, since).join('\n')}`);
+      console.log('\nNot scored, so check these yourself:');
+      for (const [id, what] of REVIEW) {
+        console.log(`  ${id.padEnd(6)} ${what}`);
+        if (id === 'W4') for (const p of rep.rich_results_test ?? []) console.log(`         ${p.url} (${p.features.join(', ')})\n           ${p.test}`);
+      }
+    }
+    process.exitCode = rep.results.some((r) => r.level === 'required' && r.status === 'fail') ? 1 : 0;
   }
-  process.exitCode = rep.results.some((r) => r.level === 'required' && r.status === 'fail') ? 1 : 0;
+} catch (e) {
+  console.error(`readiness-audit stopped on an error, so there's no score. Please report it with the domain: ${REPO}/issues\n${e?.stack ?? e}`);
+  process.exit(2);
 }

@@ -54,8 +54,11 @@ function send(req, res, status, headers, body) {
 }
 
 /** Starts the fixture on a free port: { base, log (lines), maxInFlight, close }.
- *  `delay` holds each answer for that many ms, so requests overlap and maxInFlight counts them. */
-export async function startFixture({ allow = 'GET, HEAD', delay = 0 } = {}) {
+ *  `delay` holds each answer for that many ms, so requests overlap and maxInFlight counts them.
+ *  `malformed` adds /malformed (a canonical and og:image that aren't URLs) and /bad-location
+ *  (a Location that isn't one) to the sitemap. */
+export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed = false } = {}) {
+  const extra = malformed ? ['/malformed', '/bad-location'] : [];
   const log = [];
   let inFlight = 0, maxInFlight = 0;
   const srv = createServer(async (req, res) => {
@@ -75,12 +78,14 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0 } = {}) {
   if (req.method === 'POST' && path === '/') return send(req, res, 405, { 'content-type': 'application/json', ...(allow ? { allow } : {}) }, '{"error":"method_not_allowed","next_steps":["GET /llms.txt"]}');
   if (path === '/robots.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, ['User-agent: *', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '', ...['GPTBot', 'ClaudeBot', 'PerplexityBot'].flatMap((b) => [`User-agent: ${b}`, 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '']), `Sitemap: ${D}/sitemap.xml`].join('\n'));
   if (path === '/sitemap.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, `<?xml version="1.0"?><sitemapindex><sitemap><loc>${D}/sitemap-static.xml</loc><lastmod>2026-01-01</lastmod></sitemap><sitemap><loc>${D}/sitemap-items.xml</loc><lastmod>2026-01-01</lastmod></sitemap></sitemapindex>`);
-  if (path === '/sitemap-static.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(staticPaths));
+  if (path === '/sitemap-static.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap([...staticPaths, ...extra]));
   if (path === '/sitemap-items.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(items.map((id) => `/items/${id}`)));
   if (path === '/llms.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, llms);
   if (path === '/llms-full.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, llmsFull);
   if (path === '/.well-known/security.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, 'Contact: mailto:security@fixture.example\nExpires: 2027-06-01T00:00:00Z\n');
   if (path === '/og.png') return send(req, res, 200, { 'content-type': 'image/png' }, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  if (malformed && path === '/malformed') return send(req, res, 200, html, page({ path, title: 'A malformed fixture page', desc: 'A page whose canonical and share image are not URLs, so the audit has to report them instead of stopping.' }).replace(`href="${D}${path}"`, 'href="http://["').replace(`content="${D}/og.png"`, 'content="http://["'));
+  if (malformed && path === '/bad-location') return send(req, res, 301, { location: 'http://[' }, '');
   if (path === '/mapped') return send(req, res, 302, { location: `http://[::ffff:127.0.0.1]:${req.socket.localPort}/about` }, '');
   if (path === '/old') return send(req, res, 301, { location: `${D}/about` }, '');
   if (path === '/brotli') { res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'br' }); return res.end(brotliCompressSync(pages['/'])); }

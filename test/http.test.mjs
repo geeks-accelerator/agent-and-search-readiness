@@ -81,3 +81,9 @@ test('request caps a body, raw or decoded, and keeps the status', async () => {
   assert.match(bomb.error, /^gzip body decodes to over 1 MB$/);
   assert.equal(fits.text.length, 500);
 });
+
+test('request resolves with an error for a URL it can\'t parse, and never throws', async () => {
+  const r = await request('http://[', { userAgent: 'test' });
+  assert.equal(r.status, 0);
+  assert.match(r.error, /^not a URL/);
+});

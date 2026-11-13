@@ -45,6 +45,11 @@ export function list(xs, sep = ', ') {
   return `${xs.slice(0, 3).join(sep)}${xs.length > 3 ? `, +${xs.length - 3} more` : ''}`;
 }
 
+/** new URL(href, base), or null when it isn't one. Site content can hold anything (href="http://["). */
+export function safeUrl(href, base) {
+  try { return new URL(href, base); } catch { return null; }
+}
+
 /** A URL for comparison: lowercase host, no trailing slash, no fragment. The query stays. */
 export function norm(u) {
   try { const x = new URL(u); return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '') || '/'}${x.search}`; } catch { return u; }
@@ -346,7 +351,7 @@ const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; 
  */
 export function skillNameProblem({ name, url, entryName }) {
   if (!SKILL_NAME.test(name ?? '')) return 'not a lowercase slug';
-  const path = new URL(url).pathname;
+  const path = safeUrl(url)?.pathname ?? '';
   const folder = /\/SKILL\.md$/i.test(path) ? decode(path.split('/').slice(-2, -1)[0] ?? '') : '';
   if (folder && folder !== name) return `folder is ${folder}`;
   if (typeof entryName === 'string' && entryName && entryName !== name) return `index says ${entryName}`;
