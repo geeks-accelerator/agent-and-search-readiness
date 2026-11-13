@@ -15,20 +15,20 @@ npx readiness-audit example.com
 It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line (each supported line's current security release), and has no dependencies.
 
 ```
-Agent and search readiness: animalhouse.ai  (readiness-audit v2.6.0, 2026-11-04T22:14Z)
+Agent and search readiness: animalhouse.ai  (readiness-audit v2.6.1, 2026-11-13T00:15Z)
 
 Required
   PASS  D1   robots.txt                           1 group with consistent rules, Sitemap listed
-  PASS  D4   llms.txt and llms-full.txt           llms.txt 16.2 KB, llms-full.txt 65 KB; 10 sampled links resolve without a redirect; llms-full.txt lists the 3 sampled pages
+  PASS  D4   llms.txt and llms-full.txt           llms.txt 17.5 KB, llms-full.txt 66 KB; 10 sampled links resolve without a redirect; llms-full.txt lists the 4 sampled pages
   PASS  D12  No false declarations                no OAuth, A2A, plugin or server-card claims without the service behind them
-  PASS  W1   Titles and descriptions              27 sampled pages (18 static, 3 templates), all with their own title and description
+  PASS  W1   Titles and descriptions              29 sampled pages (20 static, 3 templates), all with their own title and description
   PASS  M4   Hosted MCP edge                      both eras, JSON for every Accept, browsers redirected, aliases redirect
   ...
 Recommended
   PASS  D7   JSON 404s and a JSON 405 on POST /   JSON 404 for unknown well-known paths, JSON 405 for POST / (Allow: GET, HEAD, OPTIONS)
-  WARN  D8   Markdown for agents                  Vary: Accept missing on the HTML response
+  PASS  D8   Markdown for agents                  markdown with Vary: Accept on both, x-markdown-tokens 4475; no page llms.txt links serves markdown, so no copy was compared
   ...
-Score on 2026-11-04: required 19 of 19, recommended 10 of 11, next level 1 of 2
+Score on 2026-11-13: required 19 of 19, recommended 11 of 11, next level 2 of 2
 ```
 
 To switch a project over, give its coding agent one line:
@@ -100,7 +100,7 @@ To check fixes before they ship, score a local build: `npx readiness-audit@2 exa
 
 - **It only reads:** GET requests, plus a few POSTs that create nothing (an MCP `initialize`, `server/discover` and `tools/list`, and an empty POST to `/`), at most six at a time. With `--matrix`, each site gets its own six.
 - **It can go slower.** A site that slows under parallel requests can be audited with `--concurrency 2`, or `--concurrency 1` for one request at a time. The same checks run, and take longer.
-- **It stays on public addresses.** It won't follow a link the site supplies (in its sitemap, share images, skills, catalog or DNS record) to a private or local address, at any redirect. `--base` may be local, because you chose it.
+- **It stays on public addresses.** It won't follow a link the site supplies (in its sitemap, share images, skills, catalog or DNS record) to a private or local address, at any redirect, including an IPv4 address written inside IPv6, and it checks the address it connects to. `--base` may be local, because you chose it.
 - **A hostile site can't reach a decoder bug.** It asks for gzip and decodes it itself; a body in an encoding it didn't ask for, such as Brotli, is reported rather than read, and every body is capped at 16 MB.
 - **Run it only against sites you run,** or with the owner's permission. [SECURITY.md](SECURITY.md) has the details and how to report a problem.
 

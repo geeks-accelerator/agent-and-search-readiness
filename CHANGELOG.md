@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.6.1 (2026-11-12)
+
+Four bugs from an outside review of 2.6.0, each reproduced first and now covered by a test. No new checks and no new warnings. D1 passes robots.txt files it wrongly failed, and the audit finishes where it used to crash.
+
+- **The address guard reads IPv6 as bytes, and checks at connect time (security).** The URL parser writes `[::ffff:127.0.0.1]` as `[::ffff:7f00:1]`, and the guard knew only the dotted form, so a site could redirect the audit to loopback or a cloud metadata address. It now classifies IPv4-mapped, IPv4-compatible, NAT64 and 6to4 addresses by the IPv4 inside them, and refuses 198.18.0.0/15, multicast and reserved addresses. A name that doesn't resolve is no longer counted as safe. Every request outside the audited site and `--base` checks the addresses it connects to, so a name that resolves differently the second time (DNS rebinding) is still refused.
+- **A URL in site content that isn't one is a finding, not a crash.** A canonical like `href="http://["` stopped the whole audit with exit code 1, the code for a failing site. W2 reports a canonical that isn't a URL, W5 a share image, W3 a redirect `Location`, S1 a skills index entry. An error in the audit itself now exits 2, as a bad option already did, and the README says so.
+- **D1 lets a named robots.txt group be stricter than `*`.** `User-agent: BadBot` with `Disallow: /` failed as "badbot skips Disallow /admin". D1 now matches rules as RFC 9309 does (the longest match wins, Allow on a tie, `*` and `$`), reads Allow lines, and combines groups for the same agent, `*` included. It still fails a named group that misses a `*` Disallow, or reopens one with Allow.
+- **A domain in capitals or with a trailing dot is the same site.** `MusicVenue.space` found no sitemap URLs on its own site and failed D2 and W1 to W6. The CLI and `audit()` lowercase the domain and drop a trailing dot.
+
 ## 2.6.0 (2026-11-04)
 
 From two projects fixing their APIs: one has no `/v1` prefix. No scoring changes, and no new warnings or failures.
