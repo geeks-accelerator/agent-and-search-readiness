@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain } from './helpers.mjs';
 
 export const VERSION = '2.6.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -111,6 +111,7 @@ async function resolveTxtFresh(name) {
 // connects to, so a name that resolves to a public address for the check and a private one for the
 // connection (DNS rebinding) is still refused.
 export function makeGuard(domain) {
+  domain = siteDomain(domain);
   const siteHosts = new Set([domain, domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`]);
   const hostCache = new Map();
   async function isSafe(url) {
@@ -140,6 +141,7 @@ export function makeGuard(domain) {
 }
 
 export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency = null } = {}) {
+  domain = siteDomain(domain); // the package exports audit(), so normalize here as well as in the CLI
   const BASE = `https://${domain}`;
   // Requests in flight to the site at once. By default, 6 for the discovery files and 4 for
   // sitemaps and pages; `concurrency` sets one limit for all of them, for a site that slows

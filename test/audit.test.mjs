@@ -88,3 +88,13 @@ test('URLs in site content that aren\'t URLs are reported, and the audit finishe
   assert.match(by.W5.detail, /share images that don't load: .*http:\/\/\[ \(not a URL\)/);
   assert.match(by.W3.detail, /\/bad-location \(301, redirect Location isn't a URL: http:\/\/\[\)/);
 });
+
+test('a domain in capitals or with a trailing dot is audited as the same site', async () => {
+  const site = await startFixture();
+  let rep;
+  try { rep = await audit('Fixture.Example.', { base: site.base }); } finally { await site.close(); }
+  const by = Object.fromEntries(rep.results.map((r) => [r.id, r]));
+  assert.equal(rep.domain, 'fixture.example');
+  assert.match(by.D2.detail, /^31 URLs/);
+  assert.match(by.W1.detail, /6 static, 1 template/);
+});

@@ -50,6 +50,9 @@ export function safeUrl(href, base) {
   try { return new URL(href, base); } catch { return null; }
 }
 
+/** A domain as the audit compares hosts: lowercase, with no trailing dot (URL hostnames are both). */
+export const siteDomain = (d) => String(d ?? '').trim().toLowerCase().replace(/\.+$/, '');
+
 /**
  * robots.txt as groups: { agents (lowercase), rules: [{ allow, path }], signal }, in file order.
  * A run of User-agent lines starts one group; an empty Disallow allows everything, so it adds no rule.
@@ -359,6 +362,7 @@ export function llmsLinks(text, llmsUrl, hosts) {
  * fromBase() maps them back, so every check keeps seeing the domain's URLs.
  */
 export function baseMapper(domain, base) {
+  domain = siteDomain(domain);
   const hosts = new Set([domain, domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`]);
   const baseOrigin = base ? new URL(base).origin : null;
   const toBase = (url) => {

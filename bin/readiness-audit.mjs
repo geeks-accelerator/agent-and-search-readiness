@@ -11,7 +11,7 @@
 import { readFileSync, createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { audit, matrix, score, LEVELS, REVIEW, VERSION, REPO } from '../src/audit.mjs';
-import { parsePrevious, compareResults, formatComparison, nodeOk, NODE_REQUIREMENT } from '../src/helpers.mjs';
+import { parsePrevious, compareResults, formatComparison, nodeOk, NODE_REQUIREMENT, siteDomain } from '../src/helpers.mjs';
 import { logTally, formatLogs } from '../src/logs.mjs';
 
 // engines in package.json only warns, so say it plainly before anything fails oddly.
@@ -34,7 +34,7 @@ const base = valueOf('--base');
 const logsPath = valueOf('--logs');
 const concurrencyOpt = valueOf('--concurrency');
 const domains = args.filter((a, i) => !a.startsWith('-') && !['--mcp', '--recorded', '--compare', '--base', '--logs', '--concurrency'].includes(args[i - 1]))
-  .map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));
+  .map((d) => siteDomain(d.replace(/^https?:\/\//i, '').replace(/[/?#].*$/, '')));
 const opts = { mcpPath: flag('--no-mcp') ? null : (mcpOpt ?? '/mcp'), base: base ?? null, concurrency: null };
 if (flag('--concurrency')) {
   const n = Number(concurrencyOpt);
