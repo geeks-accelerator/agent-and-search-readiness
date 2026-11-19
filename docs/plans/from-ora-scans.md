@@ -2,7 +2,7 @@
 
 Written 2026-11-19, from Ora's scores for 17 of our sites, read through its keyless API (`GET https://ora.ai/api/score/{domain}`, and `POST /api/scan` for the 13 it hadn't scanned). Ora scoring version 3, revision 17, 138 checks per site.
 
-**Status (2026-11-19):** not started. Revised the same day after an audit of the code (below). Ships as 2.7.0: new warnings, no new failures.
+**Status (2026-11-19):** steps 0 to 11 are done, in 2.7.0 (committed, not yet released). Revised the same day after an audit of the code (below). Step 9 went to A5, not D13: A5 is the API reference and already scored, so D13 stays a review item. Step 0's skills index lives in the API fixture, since S1 asks every skill to link the API or MCP reference. Real-site runs matched Ora's findings, with one deliberate difference: A1 counts an inline error schema as typed (drifts), where Ora wants a named one. Ships as 2.7.0: new warnings, no new failures.
 
 ## The sites
 

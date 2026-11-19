@@ -15,20 +15,20 @@ npx readiness-audit example.com
 It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line (each supported line's current security release), and has no dependencies.
 
 ```
-Agent and search readiness: animalhouse.ai  (readiness-audit v2.6.1, 2026-11-13T00:15Z)
+Agent and search readiness: animalhouse.ai  (readiness-audit v2.7.0, 2026-11-19T17:35Z)
 
 Required
   PASS  D1   robots.txt                           1 group with consistent rules, Sitemap listed
-  PASS  D4   llms.txt and llms-full.txt           llms.txt 17.5 KB, llms-full.txt 66 KB; 10 sampled links resolve without a redirect; llms-full.txt lists the 4 sampled pages
+  WARN  D4   llms.txt and llms-full.txt           llms.txt has no markdown links: list each page as - [name](url): notes, as the llms.txt proposal does
   PASS  D12  No false declarations                no OAuth, A2A, plugin or server-card claims without the service behind them
   PASS  W1   Titles and descriptions              29 sampled pages (20 static, 3 templates), all with their own title and description
   PASS  M4   Hosted MCP edge                      both eras, JSON for every Accept, browsers redirected, aliases redirect
   ...
 Recommended
   PASS  D7   JSON 404s and a JSON 405 on POST /   JSON 404 for unknown well-known paths, JSON 405 for POST / (Allow: GET, HEAD, OPTIONS)
-  PASS  D8   Markdown for agents                  markdown with Vary: Accept on both, x-markdown-tokens 4475; no page llms.txt links serves markdown, so no copy was compared
+  WARN  D8   Markdown for agents                  a missing page answers Accept: text/markdown with text/html: send a short markdown 404 that links llms.txt
   ...
-Score on 2026-11-13: required 19 of 19, recommended 11 of 11, next level 2 of 2
+Score on 2026-11-19: required 15 of 19, recommended 9 of 11, next level 2 of 2
 ```
 
 To switch a project over, give its coding agent one line:
@@ -66,6 +66,7 @@ What agents and crawlers actually ask a site for, from production logs:
 | Tool | What it does | Use it with this |
 |---|---|---|
 | [Is Your Site Agent-Ready?](https://isitagentready.com/) (Cloudflare) | A web scan for llms.txt, MCP, agent skills and other agent-facing standards | For a quick look in the browser. This runs in your terminal and CI, scores local builds, and checks search as well as agents |
+| [Ora](https://ora.ai/) | A 0 to 100 agent readiness score from about 140 checks, with a keyless API | A list of things to look at. It scores WebMCP, OAuth metadata and an MCP server as required for every site; this checks each one only when it's true, and checks search as well ([what scanners check](STANDARD.md#what-scanners-check)) |
 | [Lighthouse](https://developer.chrome.com/docs/lighthouse/overview) | Audits one page's performance, accessibility, best practices and SEO in a browser | Use it page by page, for Core Web Vitals (W8). This checks a site's discovery files and samples its pages |
 | [Rich Results Test](https://search.google.com/test/rich-results) (Google) | Checks a page's structured data against Google's rich result rules | This lists which pages to run through it, with a link for each (W4) |
 | llms.txt validators | Check that one file is well formed | This checks llms.txt and samples its links, as one of about 30 checks |

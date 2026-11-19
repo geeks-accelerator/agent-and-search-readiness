@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.7.0 (2026-11-19)
+
+From Ora's scans of 17 of our sites, checked against the standard and its sources. Eight new warnings, no new failures. Each warning can lower a score until it's fixed, but none changes the exit code. Built on shared code first, so no check has its own copy of a parser or a probe.
+
+- **S1 warns about skill descriptions that don't say when to use the skill.** The Agent Skills spec's description says what the skill does and when to use it, and STANDARD.md §7 already asked for it. A when-clause in the description or a "When to use" heading in the body passes.
+- **D8 checks the `.md` URL as well as `Accept`,** for the homepage (`/index.md`) and the page it compares, as STANDARD.md already said and the llms.txt proposal defines. It also **warns when a missing page answers a markdown request with HTML**: the 404 stays a 404, with a short markdown body that links llms.txt. D8 now reports every problem it finds, not just the first. The D8 recipe shows both.
+- **D4 warns when llms.txt has no markdown links,** the `[name](url)` lists the proposal's format is made of.
+- **A3 warns when the API catalog has no `item` link to the API.** RFC 9727 §4.1 says the catalog MUST link to the API endpoints, and an API that appears only as a linkset anchor isn't linked. A3 gets the repo's first catalog example.
+- **W4 warns when the homepage doesn't say which product it is:** no `sameAs` on its `WebSite` or `Organization`. W4 says `WebSite.name` is the product's name, and to leave out `address` and `contactPoint` unless there's a business address to print.
+- **A1 warns about error responses with no schema** in the OpenAPI document, and asks for one error object or RFC 9457 problem details.
+- **A5 checks that the homepage links the API docs,** and is now "API reference as markdown, linked from the homepage".
+- **STANDARD.md:** M3 names the MCP Registry entry under the site's domain (DNS or HTTP proof, in CI), and says how to move an existing `io.github` entry. T6 adds a search for the product's name to the monthly review. "What scanners check" adds Ora: what it scores and where it disagrees with this standard. §16 cites RFC 9457, Google's Organization and site-name docs, the Agent Skills spec, the registry's docs and Ora's check catalog.
+- **Code:** the page parsers (`attrs`, `tags`, `meta`, `jsonLd`), the OpenAPI document and its operations, the missing-page probe, SKILL.md parsing and llms.txt's link pattern each have one implementation in `src/helpers.mjs` or the up-front requests, shared by every check that reads them. `attrs()` reads unquoted attribute values.
+- **Tests:** `startFixture({ api: true })` serves an API, its docs, an API catalog and a skills index, so A1 to A7, S1 and S2 have an end-to-end test for the first time.
+
 ## 2.6.1 (2026-11-12)
 
 Four bugs from an outside review of 2.6.0, each reproduced first and now covered by a test. No new checks and no new warnings. D1 passes robots.txt files it wrongly failed, and the audit finishes where it used to crash.
