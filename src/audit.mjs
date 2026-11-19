@@ -196,7 +196,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
 
   const D = DISCOVERY_FILES;
   const [home, homeMd, robots, sitemap, llms, llmsFull, openapi, apiIndex, apiCatalog, security, authMd, docsMd,
-    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, postRoot, legacyCard, wkCard] = await mapLimit([
+    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, pageMiss, postRoot, legacyCard, wkCard] = await mapLimit([
     () => get('/'),
     () => get('/', { headers: { accept: 'text/markdown' } }),
     () => get(D.robots),
@@ -218,6 +218,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     () => get(D.aiPlugin),
     () => get(`/.well-known/no-such-file-${rand}`),
     () => get(`/api/no-such-endpoint-${rand}`, { headers: { accept: 'application/json' } }),
+    () => get(`/no-such-page-${rand}`, { headers: { accept: 'text/html' } }),
     () => get('/', { method: 'POST', redirect: 'manual' }),
     () => get(D.legacyCard),
     () => get(D.wkCard),
@@ -742,9 +743,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         // A missing item under each template: a detail route is where a loading boundary or a fallback answers 200.
         // Templates first, then any deeper sampled page, so a small site's /blog/[post] gets a probe too.
         const parents = [...sample.templates.map((t) => t.urls[0]), ...pick].map((u) => new URL(u).pathname).filter((path) => pathDepth(path) >= 2).map((path) => path.replace(/\/[^/]+\/?$/, ''));
-        const probes = [`/no-such-page-${rand}`, ...[...new Set(parents)].slice(0, 3).map((parent) => `${parent}/no-such-item-${rand}`)];
-        const soft = [];
-        for (const path of probes) {
+        const soft = pageMiss.status === 200 ? [`/no-such-page-${rand}`] : []; // requested with the discovery files
+        for (const path of [...new Set(parents)].slice(0, 3).map((parent) => `${parent}/no-such-item-${rand}`)) {
           const r = await get(path, { headers: { accept: 'text/html' } });
           if (r.status === 200) soft.push(path);
         }
