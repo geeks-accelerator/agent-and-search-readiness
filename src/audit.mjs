@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -780,7 +780,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       // W4 structured data
       {
         const id = 'W4', name = 'Structured data', level = 'required';
-        const homeTypes = home.status === 200 ? jsonLd(home.text).types : null;
+        const homeLd = home.status === 200 ? jsonLd(home.text) : null;
+        const homeTypes = homeLd?.types ?? null;
         const broken = ok200.filter((p) => p.ldBroken).map((p) => short(p.url));
         const none = ok200.filter((p) => !p.types.length).map((p) => short(p.url));
         const deepPages = ok200.filter((p) => templatePages.has(norm(p.url)) && pathDepth(p.url) >= 2);
@@ -797,8 +798,11 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         if (broken.length) problems.push(`JSON-LD that doesn't parse on ${list(broken)}`);
         if (homeTypes && !homeTypes.some((t) => ['Organization', 'WebSite'].includes(t))) problems.push('no Organization or WebSite on the homepage');
         if (none.length) problems.push(`no JSON-LD on ${list(none)}`);
-        if (problems.length) miss(id, name, level, problems.concat(notes).join('; '));
-        else if (noCrumbs.length > deepPages.length / 2) record(id, name, level, 'warn', [`no BreadcrumbList on ${noCrumbs.length} of ${deepPages.length} sampled template pages`, ...notes].join('; '));
+        const warns = [];
+        if (noCrumbs.length > deepPages.length / 2) warns.push(`no BreadcrumbList on ${noCrumbs.length} of ${deepPages.length} sampled template pages`);
+        if (homeTypes?.some((t) => ['Organization', 'WebSite'].includes(t)) && !identityLinks(homeLd.nodes).length) warns.push('no sameAs on the homepage\'s WebSite or Organization: link the product\'s own profiles (its repository, package, registry entry) so agents can tell it apart');
+        if (problems.length) miss(id, name, level, problems.concat(warns, notes).join('; '));
+        else if (warns.length) record(id, name, level, 'warn', warns.concat(notes).join('; '));
         else pass(id, name, level, [`types: ${[...all].slice(0, 8).join(', ')}`, ...notes].join('; '));
       }
       // W5 link previews

@@ -29,7 +29,7 @@ const page = ({ path, title, desc, h = '<h1>Page</h1>', twitterTitle, extraLd = 
 <meta property="og:title" content="${title}"><meta property="og:description" content="${desc}">
 <meta property="og:image" content="${D}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="${title}">
 <meta name="twitter:card" content="summary_large_image">${twitterTitle ? `<meta name="twitter:title" content="${twitterTitle}">` : ''}
-<script type="application/ld+json">${JSON.stringify([{ '@context': 'https://schema.org', '@type': 'WebSite', name: 'Fixture', url: D }, { '@context': 'https://schema.org', '@type': 'Organization', name: 'Fixture', url: D }, ...extraLd])}</script>
+<script type="application/ld+json">${JSON.stringify([{ '@context': 'https://schema.org', '@type': 'WebSite', name: 'Fixture', url: D, sameAs: ['https://github.com/example/fixture', 'https://www.npmjs.com/package/fixture'] }, { '@context': 'https://schema.org', '@type': 'Organization', name: 'Fixture', url: D }, ...extraLd])}</script>
 </head><body><nav><h2>Menu</h2></nav><main>${h}<p>Body text.</p><img src="/x.png" alt="x"></main><footer><h4>Links</h4></footer></body></html>`;
 
 const crumbs = (path) => ({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Items', item: `${D}/items` }, { '@type': 'ListItem', position: 2, name: path, item: `${D}${path}` }] });

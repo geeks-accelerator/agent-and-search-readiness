@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -403,4 +403,10 @@ test('catalogItems lists the APIs an RFC 9727 catalog links with item', () => {
   // The API as the anchor, with service-desc only: the RFC's MUST wants a hyperlink to the API itself.
   assert.deepEqual(catalogItems({ linkset: [catalog.linkset[1]] }), []);
   assert.deepEqual(catalogItems(null), []);
+});
+
+test('identityLinks reads sameAs from the homepage\'s WebSite and Organization', () => {
+  const nodes = jsonLd('<script type="application/ld+json">{"@graph":[{"@type":"WebSite","name":"Pets","sameAs":"https://github.com/acme/pets"},{"@type":"Organization","name":"Acme","sameAs":["https://www.npmjs.com/package/pets","https://x.com/pets"]},{"@type":"Person","sameAs":"https://example.org/me"}]}</script>').nodes;
+  assert.deepEqual(identityLinks(nodes), ['https://github.com/acme/pets', 'https://www.npmjs.com/package/pets', 'https://x.com/pets']);
+  assert.deepEqual(identityLinks(jsonLd('<script type="application/ld+json">{"@type":"WebSite","name":"Pets"}</script>').nodes), []);
 });

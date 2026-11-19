@@ -162,6 +162,12 @@ export function jsonLd(html) {
   return { ld, types: nodes.flatMap((n) => [].concat(n['@type'])), nodes };
 }
 
+/** The sameAs links on a page's WebSite and Organization nodes: the profiles that say which product this is. */
+export function identityLinks(nodes) {
+  return (nodes ?? []).filter((n) => [].concat(n['@type']).some((t) => t === 'WebSite' || t === 'Organization'))
+    .flatMap((n) => [].concat(n.sameAs ?? [])).filter((h) => typeof h === 'string' && h);
+}
+
 /**
  * A page's headings in order, as { level, text }. Navigation, footers, asides and
  * screen-reader-only headings aren't part of the page's structure, so they're left out.
