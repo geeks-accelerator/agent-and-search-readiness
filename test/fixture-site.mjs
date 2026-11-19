@@ -3,7 +3,7 @@
 // Deliberate problems, each one a check should report:
 //   /about       inherits the homepage's twitter:title       -> W5 fails
 //   /docs/guide  jumps from h1 to h3                          -> W6 warns
-//   /docs/guide  markdown copy lacks a section                -> D8 warns
+//   /docs/guide  markdown copy lacks a section, and no .md URL -> D8 warns
 //   /brotli      answers a Brotli body nobody asked for       -> refused, so W1 sees no title
 //   /old         llms.txt links it; it 301s to /about         -> D4 warns
 //   /privacy     llms.txt links it; llms-full.txt doesn't      -> D4 warns
@@ -133,6 +133,7 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed =
   if (path === '/old') return send(req, res, 301, { location: `${D}/about` }, '');
   if (path === '/brotli') { res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'br' }); return res.end(brotliCompressSync(pages['/'])); }
   if (path.startsWith('/.well-known/')) return send(req, res, 404, { 'content-type': 'application/json' }, `{"error":"not_found","llms":"${D}/llms.txt"}`);
+  if (path === '/index.md') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8' }, llms);
   if (wantsMd && path === '/') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, llms);
   if (wantsMd && path === '/docs/guide') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, '# Guide\n\n## Run it\n\nSteps.\n');
   if (pages[path]) return send(req, res, 200, { ...html, link }, pages[path]);

@@ -31,6 +31,8 @@ test('the audit reports the fixture site\'s deliberate problems, and passes the 
   assert.match(by.W6.detail, /\/docs\/guide \(h1 to h3\)/);
   assert.equal(status('D8'), 'warn');
   assert.match(by.D8.detail, /\/docs\/guide lacks 2 sections/);
+  assert.match(by.D8.detail, /no markdown at the \.md URL of \/docs\/guide \(\/docs\/guide\.md answered 404\)/);
+  assert.doesNotMatch(by.D8.detail, /index\.md/); // the homepage's .md URL is served
 
   // The rest of what the fixture does right.
   for (const id of ['D1', 'D6', 'D11', 'D12', 'W1', 'W2', 'W4', 'D5', 'D7', 'D15']) assert.equal(status(id), 'pass', `${id}: ${by[id]?.detail}`);

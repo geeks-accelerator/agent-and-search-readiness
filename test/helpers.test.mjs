@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -378,4 +378,12 @@ test('saysWhenToUse finds a when-clause in the description or a When to use head
   assert.equal(saysWhenToUse({ description: 'Feeds a pet through the API.', body: '# Feed\n\n## When to use\n\nAt mealtimes.' }), true);
   assert.equal(saysWhenToUse({ description: 'Feeds a pet through the API.', body: '# Feed\n\nCall POST /feed.' }), false);
   assert.equal(saysWhenToUse({ description: 'Manage your pet', body: '' }), false);
+});
+
+test('markdownUrl maps a page to its .md URL, the llms.txt proposal\'s way', () => {
+  assert.equal(markdownUrl('https://example.com/'), 'https://example.com/index.md');
+  assert.equal(markdownUrl('https://example.com'), 'https://example.com/index.md');
+  assert.equal(markdownUrl('https://example.com/docs/'), 'https://example.com/docs/index.md');
+  assert.equal(markdownUrl('https://example.com/docs/api?x=1#y'), 'https://example.com/docs/api.md');
+  assert.equal(markdownUrl('not a url'), null);
 });

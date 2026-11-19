@@ -360,6 +360,18 @@ export function sharedCardText(pages) {
   return out;
 }
 
+/**
+ * A page's .md URL, the llms.txt proposal's way: /about is /about.md, and a URL with no file
+ * name (/ or /docs/) appends index.md. Query and fragment are dropped. null for what isn't a URL.
+ */
+export function markdownUrl(url) {
+  const u = safeUrl(url);
+  if (!u) return null;
+  u.search = ''; u.hash = '';
+  u.pathname = u.pathname.endsWith('/') ? `${u.pathname}index.md` : `${u.pathname}.md`;
+  return u.href;
+}
+
 /** A markdown link, [text](url "title"), capturing the URL: the form the llms.txt proposal's file lists use. */
 export const MARKDOWN_LINK = /\]\(\s*<?([^)\s>]+)>?[^)]*\)/g;
 

@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -196,7 +196,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
 
   const D = DISCOVERY_FILES;
   const [home, homeMd, robots, sitemap, llms, llmsFull, openapi, apiIndex, apiCatalog, security, authMd, docsMd,
-    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, pageMiss, postRoot, legacyCard, wkCard] = await mapLimit([
+    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, pageMiss, homeMdUrl, postRoot, legacyCard, wkCard] = await mapLimit([
     () => get('/'),
     () => get('/', { headers: { accept: 'text/markdown' } }),
     () => get(D.robots),
@@ -219,6 +219,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     () => get(`/.well-known/no-such-file-${rand}`),
     () => get(`/api/no-such-endpoint-${rand}`, { headers: { accept: 'application/json' } }),
     () => get(`/no-such-page-${rand}`, { headers: { accept: 'text/html' } }),
+    () => get(markdownUrl(`${BASE}/`)),
     () => get('/', { method: 'POST', redirect: 'manual' }),
     () => get(D.legacyCard),
     () => get(D.wkCard),
@@ -348,18 +349,28 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   {
     const id = 'D8', name = 'Markdown for agents', level = 'recommended';
     const varyAccept = (r) => /(^|,)\s*accept\s*(,|$)/i.test(r.headers.get('vary') ?? '');
+    // Markdown served as text/markdown, or as text/plain with a markdown heading (as llms.txt often is).
+    const isMarkdown = (r) => ok(r) && (/text\/markdown/.test(r.type) || (/text\/plain/.test(r.type) && /^\s*#/.test(r.text)));
     const tokens = homeMd.headers.get('x-markdown-tokens');
     // The homepage's markdown may be llms.txt, so compare a page llms.txt links instead, when it serves markdown.
-    const copy = { path: null, gone: [] };
+    const copy = { path: null, gone: [], mdUrl: null };
     // The first linked page that serves markdown; pages that don't are fine (start with the homepage and docs).
     for (const { u, r } of llmsAnswers.filter(({ u, r }) => ok(r) && /text\/html/.test(r.type) && new URL(u).pathname !== '/')) {
       const md = await get(u, { headers: { accept: 'text/markdown' } });
-      if (ok(md) && /text\/markdown/.test(md.type)) { Object.assign(copy, { path: new URL(u).pathname, gone: missingSections(r.text, md.text) }); break; }
+      if (ok(md) && /text\/markdown/.test(md.type)) { Object.assign(copy, { path: new URL(u).pathname, gone: missingSections(r.text, md.text), mdUrl: await get(markdownUrl(u)) }); break; }
     }
     if (!/text\/markdown/.test(homeMd.type)) miss(id, name, level, `Accept: text/markdown on / returns ${ct(homeMd)}`);
-    else if (!varyAccept(homeMd) || !varyAccept(home)) miss(id, name, level, `Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
-    else if (copy.gone.length) miss(id, name, level, `the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${list(copy.gone.map((h) => `"${h}"`))}`);
-    else pass(id, name, level, `markdown with Vary: Accept on both${tokens ? `, x-markdown-tokens ${tokens}` : ''}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
+    else {
+      // Accept and the .md URL both return a page's markdown: agents that pick a URL themselves can't send Accept.
+      const noMdUrl = [['/', homeMdUrl], ...(copy.path ? [[copy.path, copy.mdUrl]] : [])].filter(([, r]) => !isMarkdown(r))
+        .map(([path, r]) => `${path} (${new URL(markdownUrl(BASE + path)).pathname} answered ${r.status ? `${r.status}${ok(r) ? ` ${ct(r)}` : ''}` : 'no answer'})`);
+      const problems = [];
+      if (!varyAccept(homeMd) || !varyAccept(home)) problems.push(`Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
+      if (copy.gone.length) problems.push(`the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${list(copy.gone.map((h) => `"${h}"`))}`);
+      if (noMdUrl.length) problems.push(`no markdown at the .md URL of ${list(noMdUrl)}`);
+      if (problems.length) miss(id, name, level, problems.join('; '));
+      else pass(id, name, level, `markdown by Accept and at the .md URL, with Vary: Accept on both${tokens ? `, x-markdown-tokens ${tokens}` : ''}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
+    }
   }
 
   // ---- D9 AI catalog (ARD) ----
