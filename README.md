@@ -69,6 +69,7 @@ What agents and crawlers actually ask a site for, from production logs:
 | [Lighthouse](https://developer.chrome.com/docs/lighthouse/overview) | Audits one page's performance, accessibility, best practices and SEO in a browser | Use it page by page, for Core Web Vitals (W8). This checks a site's discovery files and samples its pages |
 | [Rich Results Test](https://search.google.com/test/rich-results) (Google) | Checks a page's structured data against Google's rich result rules | This lists which pages to run through it, with a link for each (W4) |
 | llms.txt validators | Check that one file is well formed | This checks llms.txt and samples its links, as one of about 30 checks |
+| [agent-ready-uptime](https://github.com/geeks-accelerator/agent-ready-uptime) | The monitor: checks a site every minute to every hour and alerts Discord or Slack when llms.txt stops validating, an AI crawler is turned away, an MCP server's tools change, or the site goes down | This scores a site once; that watches it between audits. The audit tells you once; the monitor tells you when it breaks |
 | [security-pranks-audit](https://github.com/geeks-accelerator/agent-security-pranks) | The sister project: checks that a site answers `.env`, `.git` and other secret-hunting probes safely | This welcomes agents and checks what they read; that checks what the scanners get. Same shape, run both |
 | [specification.website](https://specification.website) | A sourced website specification: HTML, accessibility, security, SEO, agent readiness | A spec for the whole site, accessibility and security included. This one focuses on agents and search, and comes with a scorer |
 
@@ -122,7 +123,7 @@ It can't see whether `next_steps` guide well, whether input is forgiving, whethe
 
 ## Use it in your project
 
-Point to [STANDARD.md](STANDARD.md) from your repo instead of copying it (§14 has a short stub), and pin the scorecard to a major version: `npx readiness-audit@2 <domain>`. To run it on a schedule in GitHub Actions, see [examples/github-action.yml](examples/github-action.yml).
+Point to [STANDARD.md](STANDARD.md) from your repo instead of copying it (§14 has a short stub), and pin the scorecard to a major version: `npx readiness-audit@2 <domain>`. To run it on a schedule in GitHub Actions, see [examples/github-action.yml](examples/github-action.yml). To hear about a regression the day it happens, not at the next audit, run [agent-ready-uptime](https://github.com/geeks-accelerator/agent-ready-uptime) beside it: `npx agent-ready-uptime init https://your-domain`, or its [Railway template](https://railway.com/deploy/agent-ready-uptime).
 
 To switch a project over, give its coding agent the one-line prompt in [Quick start](#quick-start). [docs/adopting.md](docs/adopting.md) has the step-by-step instructions it follows, with lessons from the first projects that did it.
 
