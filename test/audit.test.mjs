@@ -98,3 +98,12 @@ test('a domain in capitals or with a trailing dot is audited as the same site', 
   assert.match(by.D2.detail, /^31 URLs/);
   assert.match(by.W1.detail, /6 static, 1 template/);
 });
+
+test('with an API and skills, the API and skills checks run', async () => {
+  const site = await startFixture({ api: true });
+  let rep;
+  try { rep = await audit('fixture.example', { base: site.base }); } finally { await site.close(); }
+  const by = Object.fromEntries(rep.results.map((r) => [r.id, r]));
+  assert.equal(rep.has_api, true);
+  for (const id of ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'S1', 'S2', 'D5']) assert.equal(by[id].status, 'pass', `${id}: ${by[id].detail}`);
+});

@@ -9,9 +9,11 @@
 //   /privacy     llms.txt links it; llms-full.txt doesn't      -> D4 warns
 //   /mapped      llms.txt links it; it 302s to this server at [::ffff:127.0.0.1] -> refused, D4 warns
 // robots.txt blocks BadBot entirely, which is stricter than *, so D1 still passes.
+// With { api: true } it also serves an API, its docs, an API catalog and a skills index (apiRoutes below).
 // Everything else is meant to pass. Each request is logged in combined format, for --logs.
 import { createServer } from 'node:http';
 import { gzipSync, brotliCompressSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 
 const D = 'https://fixture.example';
 
@@ -47,6 +49,44 @@ const llms = `# Fixture\n\n> A fixture site for readiness-audit.\n\n- [About](${
 // The catalog: each page's link and summary, not its full text. It leaves out /privacy.
 const llmsFull = `# Fixture\n\n> A fixture site for readiness-audit.\n\n## Pages\n\n${[['About', '/about'], ['Guide', '/docs/guide'], ['Items', '/items']].map(([t, p]) => `### [${t}](${D}${p})\n\n${pages[p].match(/name="description" content="([^"]+)"/)[1]}\n`).join('\n')}`;
 
+// The API surfaces, served with { api: true }: path -> [status, headers, body].
+const json = (status, body, type = 'application/json') => [status, { 'content-type': type }, JSON.stringify(body)];
+const md = (body) => [200, { 'content-type': 'text/markdown; charset=utf-8' }, body];
+const openapiDoc = {
+  openapi: '3.1.0',
+  info: { title: 'Fixture API', version: '1.0.0' },
+  paths: {
+    '/api/pets': { get: { summary: 'List pets', description: 'List the fixture pets. Call it first, to find a pet\'s id.', parameters: [{ name: 'limit', in: 'query', description: 'How many pets to return.', schema: { type: 'integer' } }], responses: { 200: { description: 'The pets', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Pet' } } } } }, 400: { description: 'A limit that isn\'t a number', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } } } },
+    '/api/me': { get: { summary: 'Your pet', description: 'Read the pet your key owns. Call it after registering.', security: [{ bearer: [] }], responses: { 200: { description: 'Your pet', content: { 'application/json': { schema: { $ref: '#/components/schemas/Pet' } } } }, 401: { description: 'No key, or a wrong one' } } } },
+  },
+  components: {
+    schemas: {
+      Pet: { type: 'object', properties: { id: { type: 'string', description: 'The pet\'s id.' }, name: { type: 'string', description: 'The pet\'s name.' } } },
+      Error: { type: 'object', properties: { error: { type: 'string', description: 'What went wrong.' }, suggestion: { type: 'string', description: 'What to do next.' } } },
+    },
+    securitySchemes: { bearer: { type: 'http', scheme: 'bearer' } },
+  },
+};
+const skillMd = {
+  care: `---\nname: care\ndescription: Use when the user wants to look after a fixture pet, or asks how it is doing.\n---\n# Care\n\nStart with [llms.txt](${D}/llms.txt). The calls are in [the API reference](${D}/openapi.json).\n`,
+  feed: `---\nname: feed\ndescription: Feeds a fixture pet through the API.\n---\n# Feed\n\nStart with [llms.txt](${D}/llms.txt). The calls are in [the API reference](${D}/openapi.json).\n`,
+};
+const sha = (t) => `sha256:${createHash('sha256').update(t).digest('hex')}`;
+const apiRoutes = {
+  '/openapi.json': json(200, openapiDoc),
+  '/api': json(200, { name: 'Fixture API', openapi: `${D}/openapi.json`, endpoints: ['GET /api/pets', 'GET /api/me'] }),
+  '/api/pets': json(200, [{ id: 'p1', name: 'Rex' }]),
+  '/api/me': json(401, { error: 'unauthorized', suggestion: 'Send Authorization: Bearer <key>. Get a key at POST /api/register.' }),
+  '/.well-known/api-catalog': json(200, { linkset: [
+    { anchor: `${D}/.well-known/api-catalog`, item: [{ href: `${D}/api` }] },
+    { anchor: `${D}/api`, 'service-desc': [{ href: `${D}/openapi.json`, type: 'application/vnd.oai.openapi+json' }], 'service-doc': [{ href: `${D}/docs/api`, type: 'text/html' }] },
+  ] }, 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"'),
+  '/.well-known/agent-skills/index.json': json(200, { $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json', skills: Object.entries(skillMd).map(([name, text]) => ({ name, type: 'skill-md', description: `The ${name} skill.`, url: `/.well-known/agent-skills/${name}/SKILL.md`, digest: sha(text) })) }),
+  ...Object.fromEntries(Object.entries(skillMd).map(([name, text]) => [`/.well-known/agent-skills/${name}/SKILL.md`, md(text)])),
+  '/auth.md': md('# Auth\n\nSend `Authorization: Bearer <key>`. Get a key at `POST /api/register`; a wrong key answers 401 with a suggestion.\n'),
+  '/docs/api.md': md('# Fixture API\n\n## GET /api/pets\n\nList the pets.\n'),
+};
+
 function send(req, res, status, headers, body) {
   const gz = /gzip/.test(req.headers['accept-encoding'] ?? '') && typeof body === 'string' && body.length > 200;
   const out = gz ? gzipSync(body) : body;
@@ -58,7 +98,7 @@ function send(req, res, status, headers, body) {
  *  `delay` holds each answer for that many ms, so requests overlap and maxInFlight counts them.
  *  `malformed` adds /malformed (a canonical and og:image that aren't URLs) and /bad-location
  *  (a Location that isn't one) to the sitemap. */
-export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed = false } = {}) {
+export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed = false, api = false } = {}) {
   const extra = malformed ? ['/malformed', '/bad-location'] : [];
   const log = [];
   let inFlight = 0, maxInFlight = 0;
@@ -73,9 +113,11 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed =
   const path = new URL(req.url, 'http://x').pathname;
   res.on('finish', () => log.push(`127.0.0.1 - - [21/Oct/2026:12:00:00 +0000] "${req.method} ${req.url} HTTP/1.1" ${res.statusCode} 0 "-" "${req.headers['user-agent'] ?? '-'}"`));
   const html = { 'content-type': 'text/html; charset=utf-8', vary: 'Accept' };
-  const link = '</llms.txt>; rel="describedby"; type="text/plain"';
+  const link = ['</llms.txt>; rel="describedby"; type="text/plain"', ...(api ? ['</openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json"', '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"'] : [])].join(', ');
   const wantsMd = /text\/markdown/.test(req.headers.accept ?? '');
 
+  if (api && apiRoutes[path]) { const [status, headers, body] = apiRoutes[path]; return send(req, res, status, headers, body); }
+  if (api && path.startsWith('/api/')) return send(req, res, 404, { 'content-type': 'application/json' }, '{"error":"not_found","next_steps":["GET /api lists the endpoints"]}');
   if (req.method === 'POST' && path === '/') return send(req, res, 405, { 'content-type': 'application/json', ...(allow ? { allow } : {}) }, '{"error":"method_not_allowed","next_steps":["GET /llms.txt"]}');
   if (path === '/robots.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, ['User-agent: *', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '', ...['GPTBot', 'ClaudeBot', 'PerplexityBot'].flatMap((b) => [`User-agent: ${b}`, 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /private', '']), 'User-agent: BadBot', 'Content-Signal: search=yes, ai-input=yes, ai-train=no', 'Disallow: /', '', `Sitemap: ${D}/sitemap.xml`].join('\n'));
   if (path === '/sitemap.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, `<?xml version="1.0"?><sitemapindex><sitemap><loc>${D}/sitemap-static.xml</loc><lastmod>2026-01-01</lastmod></sitemap><sitemap><loc>${D}/sitemap-items.xml</loc><lastmod>2026-01-01</lastmod></sitemap></sitemapindex>`);

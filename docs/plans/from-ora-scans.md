@@ -90,16 +90,16 @@ Each part is a refactor with no change to any result, so `npm test` and a real-s
 - **Skill files parsed by one helper.** `skillFile(text)` returns `{ name, description, body }`; S1 uses it and its inline `fm` and `field()` go.
 - **llms.txt's link pattern exported.** `MARKDOWN_LINK` in helpers, used by `llmsLinks()` and by step 3.
 - **A fixture that reaches the API and skills checks.**
-  - The default fixture serves a skills index and two SKILL.md files, since S1 is required for any site that publishes skills. S1 and S2 join the pass list in `test/audit.test.mjs`.
-  - `startFixture({ api: true })` adds `/openapi.json` (two operations, one needing a key), a JSON `/api` index, a JSON 401 that teaches, a JSON catch-all and `/.well-known/api-catalog`. It follows the `allow`, `delay` and `malformed` options already there. The default stays without an API, so the no-API path keeps its coverage.
-  - A new end-to-end test runs with `api: true` and asserts A1 to A7.
+  - `startFixture({ api: true })` adds `/openapi.json` (two operations, one needing a key), a JSON `/api` index, a JSON 401 that teaches, a JSON catch-all, `/.well-known/api-catalog`, auth.md, `/docs/api.md`, and a skills index with two SKILL.md files. It follows the `allow`, `delay` and `malformed` options already there. The default stays without an API, so the no-API path keeps its coverage.
+  - The skills live in the API fixture, not the default: S1 asks every skill to link the API or MCP reference, so a skill on a site with neither warns by design.
+  - A new end-to-end test runs with `api: true` and asserts A1 to A7, S1, S2 and D5.
 
 ## 1. S1: a skill's description says when to use it
 
 - **Why:** STANDARD.md §7 already says the `description` says when to use the skill. An agent choosing among installed skills reads only the descriptions, so a description that names what the skill does but not when to reach for it gets passed over. The scorecard checks only that a description exists and fits in 1,024 characters.
 - **What:** in the sampled SKILL.md files, warn when the description has no when-clause ("Use when", "when the user", "when you", "for when") and the body has no "When to use" heading. Report the skills by label, as the other S1 problems are.
 - **Reuses:** S1's sampled `files` and `skillFile()` (step 0). The matcher is a pure helper, `saysWhenToUse({ description, body })`.
-- **Tests:** helper cases (both forms pass; "Manage your pet" fails); one of the fixture's two skills (step 0) lacks a when-clause, and the S1 assertion names it.
+- **Tests:** helper cases (both forms pass; "Manage your pet" fails); one of the API fixture's two skills (step 0) lacks a when-clause, and the S1 assertion names it.
 - **Source:** the Agent Skills spec's `description` field. Re-read it and cite it with the date.
 
 ## 2. D8: the `.md` URL
