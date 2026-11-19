@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -363,7 +363,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   // ---- D9 AI catalog (ARD) ----
   {
     const id = 'D9', name = 'AI catalog (ARD)', level = 'recommended';
-    const rels = [...home.text.matchAll(/<link[^>]+rel="?(ard|ai-catalog)"?/gi)].map((m) => m[1].toLowerCase());
+    const rels = tags(home.text, 'link').flatMap((a) => (a.rel ?? '').toLowerCase().split(/\s+/)).filter((r) => r === 'ard' || r === 'ai-catalog');
     const problems = [];
     for (const [file, r] of [['ard.json', ard], ['ai-catalog.json', aiCatalog]]) {
       if (!ok(r)) { problems.push(`${file} answered ${r.status}`); continue; }
@@ -653,18 +653,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     const templateOf = new Map(sample.templates.flatMap((t) => t.urls.map((u) => [norm(u), t.pattern])));
     const templatePages = new Set(templateOf.keys());
     const sampled = `${pick.length} sampled pages (${sample.static} static, ${sample.templates.length ? `${sample.templates.length} template${sample.templates.length === 1 ? '' : 's'}` : 'no templates'}${sample.skipped ? `; ${sample.skipped} static pages over the cap not read` : ''})`;
-    const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)].map((m) => [m[1].toLowerCase(), m[3] ?? m[4]]));
-    const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
-    const meta = (html, key, val) => tags(html, 'meta').find((a) => (a[key] ?? '').toLowerCase() === val)?.content;
     const text = (v) => (v === undefined ? undefined : decodeText(v));
     const tw = (html, field) => text(meta(html, 'name', `twitter:${field}`) ?? meta(html, 'property', `twitter:${field}`));
-    const jsonLd = (html) => {
-      const ld = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
-      const types = [];
-      const walk = (x) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') { if (x['@type']) types.push(...[].concat(x['@type'])); if (x['@graph']) walk(x['@graph']); } };
-      ld.forEach(walk);
-      return { ld, types };
-    };
     const parsePage = (u, r) => {
       const h = r.text;
       const { ld, types } = jsonLd(h);

@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -331,4 +331,22 @@ test('robotsLeaks: a named group may be stricter than *, never looser', () => {
   assert.deepEqual(leaks('User-agent: *\nDisallow: /admin\n\nUser-agent: GPTBot\nDisallow: /admin\n\nUser-agent: GPTBot\nDisallow: /api\n\nUser-agent: *\nDisallow: /api\n'), []);
   // One group naming * and every crawler is the simplest setup.
   assert.deepEqual(leaks('User-agent: *\nUser-agent: GPTBot\nDisallow: /admin\n'), []);
+});
+
+test('attrs, tags and meta read a page\'s tags, quoted or not', () => {
+  assert.deepEqual(attrs('<a href="/x" Rel=me data-x=\'y\'>'), { href: '/x', rel: 'me', 'data-x': 'y' });
+  const html = '<head><link rel="alternate ard" href="/.well-known/ard.json"><meta property="og:title" content="Hi"><META name=description content="A page"></head>';
+  assert.deepEqual(tags(html, 'link').map((a) => a.rel), ['alternate ard']);
+  assert.equal(meta(html, 'property', 'og:title'), 'Hi');
+  assert.equal(meta(html, 'name', 'description'), 'A page');
+  assert.equal(meta(html, 'name', 'robots'), undefined);
+});
+
+test('jsonLd returns each script, every @type and the nodes, @graph members included', () => {
+  const html = '<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Site","sameAs":["https://github.com/x/y"]},{"@type":["Organization","Brand"],"name":"Co"}]}</script><script type="application/ld+json">{broken</script>';
+  const { ld, types, nodes } = jsonLd(html);
+  assert.equal(ld.length, 2);
+  assert.equal(ld[1], null);
+  assert.deepEqual(types, ['WebSite', 'Organization', 'Brand']);
+  assert.deepEqual(nodes.map((n) => n.name), ['Site', 'Co']);
 });

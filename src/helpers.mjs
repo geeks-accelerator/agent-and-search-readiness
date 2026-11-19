@@ -135,6 +135,33 @@ export function decodeText(t) {
     .replace(/\s+/g, ' ').trim();
 }
 
+/** A tag's attributes, names lowercased, values quoted or not: <a href="/x" Rel=me> is { href: '/x', rel: 'me' }. */
+export function attrs(tag) {
+  return Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g)].map((m) => [m[1].toLowerCase(), m[2] ?? m[3] ?? m[4]]));
+}
+
+/** Every <name> opening tag in the HTML, as its attributes. */
+export function tags(html, name) {
+  return [...String(html ?? '').matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
+}
+
+/** The content of the first <meta> whose key attribute (name or property) is val. */
+export function meta(html, key, val) {
+  return tags(html, 'meta').find((a) => (a[key] ?? '').toLowerCase() === val)?.content;
+}
+
+/**
+ * The page's JSON-LD: ld (each script parsed, null where it doesn't parse), types (every @type),
+ * and nodes (every object with an @type, @graph members included).
+ */
+export function jsonLd(html) {
+  const ld = [...String(html ?? '').matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
+  const nodes = [];
+  const walk = (x) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') { if (x['@type']) nodes.push(x); if (x['@graph']) walk(x['@graph']); } };
+  ld.forEach(walk);
+  return { ld, types: nodes.flatMap((n) => [].concat(n['@type'])), nodes };
+}
+
 /**
  * A page's headings in order, as { level, text }. Navigation, footers, asides and
  * screen-reader-only headings aren't part of the page's structure, so they're left out.
