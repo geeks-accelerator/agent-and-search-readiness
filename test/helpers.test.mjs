@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -363,4 +363,10 @@ test('openapiOps lists every operation with its path parameters; openapiDeref fo
   assert.equal(deref(ops[0].params[1]).name, 'q');
   assert.deepEqual(deref({ $ref: '#/components/schemas/A' }), {}); // a cycle stops
   assert.deepEqual(openapiOps(null), []);
+});
+
+test('skillFile reads the frontmatter name and description, and the body after it', () => {
+  const f = skillFile('---\nname: care\ndescription: "Use when the user wants a pet."\n---\n# Care\n\nFeed it.\n');
+  assert.deepEqual(f, { name: 'care', description: 'Use when the user wants a pet.', body: '# Care\n\nFeed it.\n' });
+  assert.deepEqual(skillFile('# No frontmatter'), { name: '', description: '', body: '# No frontmatter' });
 });

@@ -360,6 +360,9 @@ export function sharedCardText(pages) {
   return out;
 }
 
+/** A markdown link, [text](url "title"), capturing the URL: the form the llms.txt proposal's file lists use. */
+export const MARKDOWN_LINK = /\]\(\s*<?([^)\s>]+)>?[^)]*\)/g;
+
 /**
  * The site's own links in an llms.txt: markdown links and bare URLs, resolved
  * against the file's URL, without fragments, kept only when they point at one
@@ -367,7 +370,7 @@ export function sharedCardText(pages) {
  */
 export function llmsLinks(text, llmsUrl, hosts) {
   const raw = [
-    ...[...String(text ?? '').matchAll(/\]\(\s*<?([^)\s>]+)>?[^)]*\)/g)].map((m) => m[1]),
+    ...[...String(text ?? '').matchAll(MARKDOWN_LINK)].map((m) => m[1]),
     ...[...String(text ?? '').matchAll(/\bhttps?:\/\/[^\s)>\]"'`]+/g)].map((m) => m[0]),
   ];
   const out = new Set();
@@ -431,6 +434,15 @@ export function formatRecorded(x) {
 
 
 const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+
+/** A SKILL.md file: its frontmatter name and description, and the body after the frontmatter. */
+export function skillFile(text) {
+  const t = String(text ?? '');
+  const m = t.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  const fm = m?.[1] ?? '';
+  const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
+  return { name: field('name'), description: field('description'), body: m ? t.slice(m[0].length) : t };
+}
 
 /**
  * Why a SKILL.md's frontmatter name breaks the Agent Skills spec, or null.

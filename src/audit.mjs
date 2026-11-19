@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -507,10 +507,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         const url = safeUrl(e.url, indexUrl)?.href;
         if (!url) return { url: e.url, status: 'not a URL', text: '', label: typeof e.name === 'string' && e.name ? e.name : e.url };
         const r = await get(url);
-        const fm = r.text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
-        const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
         const label = typeof e.name === 'string' && e.name ? e.name : url;
-        return { url, status: r.status, text: r.text, name: field('name'), description: field('description'), entryName: e.name, label, lines: r.text.split('\n').length };
+        return { url, status: r.status, text: r.text, ...skillFile(r.text), entryName: e.name, label, lines: r.text.split('\n').length };
       });
       const unreachable = files.filter((f) => f.status !== 200).map((f) => `${f.label} (${f.status})`);
       const read = files.filter((f) => f.status === 200);
