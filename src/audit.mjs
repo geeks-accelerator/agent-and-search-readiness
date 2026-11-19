@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -224,7 +224,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   ], limit(6), (job) => job());
   const catalogEntries = [...(json(ard)?.entries ?? []), ...(json(aiCatalog)?.entries ?? [])];
   const rels = linkRels(home.headers.get('link'));
-  const api = apiPresence({ openapiSpec: json(openapi), apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson: ok(apiCatalog) ? json(apiCatalog) : null, llmsText: ok(llms) ? llms.text : '' });
+  const spec = ok(openapi) ? json(openapi) : null; // the OpenAPI document, parsed once for every check that reads it
+  const api = apiPresence({ openapiSpec: spec, apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson: ok(apiCatalog) ? json(apiCatalog) : null, llmsText: ok(llms) ? llms.text : '' });
 
   // ---- D1 robots.txt (required) and D15 AI crawlers and Content-Signal (recommended) ----
   const groups = ok(robots) ? robotsGroups(robots.text) : [];
@@ -399,15 +400,9 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   } else {
     {
       const id = 'A1', name = 'OpenAPI 3.1', level = 'required';
-      const spec = json(openapi);
-      if (!ok(openapi) || !spec?.openapi) miss(id, name, level, `/openapi.json answered ${openapi.status}`);
+      if (!spec?.openapi) miss(id, name, level, `/openapi.json answered ${openapi.status}`);
       else {
-        const deref = (s, seen = new Set()) => {
-          if (!s || typeof s !== 'object' || !s.$ref) return s;
-          if (seen.has(s.$ref)) return {};
-          seen.add(s.$ref);
-          return deref(s.$ref.replace(/^#\//, '').split('/').reduce((n, k) => n?.[k], spec), seen);
-        };
+        const deref = openapiDeref(spec);
         // `nested` collects fields whose only description sits inside anyOf, oneOf or allOf.
         const undescribedProps = (schema, seen = new Set(), nested = null) => {
           const s = deref(schema);
@@ -425,9 +420,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
           for (const key of ['items', 'allOf', 'anyOf', 'oneOf']) for (const sub of [].concat(s[key] ?? [])) out.push(...undescribedProps(sub, seen, nested));
           return out;
         };
-        const ops = Object.entries(spec.paths ?? {}).flatMap(([p, item]) => Object.entries(item)
-          .filter(([m]) => ['get', 'post', 'put', 'patch', 'delete'].includes(m))
-          .map(([m, o]) => ({ key: `${m.toUpperCase()} ${p}`, o, params: [...(item.parameters ?? []), ...(o.parameters ?? [])] })));
+        const ops = openapiOps(spec);
         const noDesc = ops.filter(({ o }) => !String(o.description ?? '').trim());
         const inVariant = [];
         const fieldGaps = ops.flatMap(({ key, o, params }) => {
@@ -458,11 +451,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     {
       // A6, partly: an authenticated operation called without a key should answer JSON that says how to get one.
       const id = 'A6', name = 'Errors that teach (401 without a key)', level = 'required';
-      const spec = json(openapi);
       const globalSec = Array.isArray(spec?.security) && spec.security.length > 0;
-      const protectedOps = Object.entries(spec?.paths ?? {}).flatMap(([p, item]) => Object.entries(item)
-        .filter(([m, o]) => ['get', 'post'].includes(m) && (Array.isArray(o.security) ? o.security.some((r) => Object.keys(r).length) : globalSec))
-        .map(([m]) => ({ m, p })));
+      const protectedOps = openapiOps(spec).filter(({ m, o }) => ['get', 'post'].includes(m) && (Array.isArray(o?.security) ? o.security.some((r) => Object.keys(r).length) : globalSec));
       const target = protectedOps.find((x) => x.m === 'get' && !x.p.includes('{')) ?? protectedOps.find((x) => !x.p.includes('{'));
       if (!target) skip(id, name, level, 'no authenticated operation in the OpenAPI document');
       else {

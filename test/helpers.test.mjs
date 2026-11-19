@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -349,4 +349,18 @@ test('jsonLd returns each script, every @type and the nodes, @graph members incl
   assert.equal(ld[1], null);
   assert.deepEqual(types, ['WebSite', 'Organization', 'Brand']);
   assert.deepEqual(nodes.map((n) => n.name), ['Site', 'Co']);
+});
+
+test('openapiOps lists every operation with its path parameters; openapiDeref follows local $refs', () => {
+  const spec = {
+    paths: { '/pets/{id}': { parameters: [{ name: 'id', in: 'path' }], get: { parameters: [{ $ref: '#/components/parameters/q' }] }, delete: {}, summary: 'not a method' } },
+    components: { parameters: { q: { name: 'q', in: 'query' } }, schemas: { A: { $ref: '#/components/schemas/A' } } },
+  };
+  const ops = openapiOps(spec);
+  assert.deepEqual(ops.map((o) => o.key), ['GET /pets/{id}', 'DELETE /pets/{id}']);
+  assert.equal(ops[0].params.length, 2);
+  const deref = openapiDeref(spec);
+  assert.equal(deref(ops[0].params[1]).name, 'q');
+  assert.deepEqual(deref({ $ref: '#/components/schemas/A' }), {}); // a cycle stops
+  assert.deepEqual(openapiOps(null), []);
 });

@@ -469,6 +469,24 @@ export function repeatsSummary(op) {
   return Boolean(summary && description) && summary.includes(description);
 }
 
+/** Resolves local $refs (#/components/...) in an OpenAPI document; a cycle resolves to {}. */
+export function openapiDeref(spec) {
+  const deref = (s, seen = new Set()) => {
+    if (!s || typeof s !== 'object' || !s.$ref) return s;
+    if (seen.has(s.$ref)) return {};
+    seen.add(s.$ref);
+    return deref(String(s.$ref).replace(/^#\//, '').split('/').reduce((n, k) => n?.[k], spec), seen);
+  };
+  return deref;
+}
+
+/** An OpenAPI document's operations: { key: 'GET /path', m, p, o, params } with path-level parameters merged in. */
+export function openapiOps(spec) {
+  return Object.entries(spec?.paths ?? {}).flatMap(([p, item]) => Object.entries(item ?? {})
+    .filter(([m]) => ['get', 'post', 'put', 'patch', 'delete'].includes(m))
+    .map(([m, o]) => ({ key: `${m.toUpperCase()} ${p}`, m, p, o, params: [...(item.parameters ?? []), ...(o?.parameters ?? [])] })));
+}
+
 /**
  * True when a field has no description of its own but one of its anyOf, oneOf
  * or allOf members does: where Zod puts it for `.nullable()` when `.describe()`
