@@ -319,6 +319,18 @@ isitagentready.com (Cloudflare) is the scanner agents' builders run. As of 2026-
 
 It doesn't check llms.txt, security.txt, TDMRep, IndexNow or AGENTS.md, and it's lenient: it passed its own API catalog served as `text/plain`. Use it as a presence check. It rewards OAuth metadata and requires an A2A card for its top level, "Agent-Native". Don't publish either one to score points when you don't run them. Our scorecard checks against this standard instead, including whether what you declare is true.
 
+Ora (ora.ai) scores a site out of 100 across discovery, access, usability and payments, with 138 checks as of 2026-11-19 (scoring version 3), and publishes each result through a keyless API (`GET https://ora.ai/api/score/{domain}`). Its scans of 17 of our sites found real gaps the scorecard now checks (S1, D8, D4, A3, W4, A1, A5). Where it disagrees with this standard:
+
+- Its required tier includes WebMCP, OAuth Protected Resource metadata, OAuth support and an MCP server, for every site. Build each only when it's true ([Only if true](#only-if-true)). WebMCP alone was its largest deduction on 16 of our 17 sites.
+- It grades auth.md against the WorkOS walkthrough, so a site that uses API keys loses points for not describing an OAuth flow it doesn't run (A4).
+- It wants a `/v1` prefix and a deprecation policy from day one. A12 says unprefixed paths are version 1 until the first breaking change.
+- It counts a developer portal, a sandbox, a CLI, an SDK and an async-job pattern as gaps for every site.
+- It asks for Organization `address` and `contactPoint`, which publish a small company's home (W4), markdown frontmatter, and About, Contact and Privacy pages of 500 characters. No consumer is shown to read the frontmatter or count the characters; a Contact page is the site's call.
+- Its llms.txt limit of 30,000 characters has no stated source. D4 keeps llms.txt a short map and names the fetch limits that matter.
+- The "agent feedback" on each report is its own scanner's summary.
+
+Use it the way you use isitagentready: as a list of things to look at, with this standard deciding which to build.
+
 ---
 
 ## 5. Search: people and answer engines
@@ -980,6 +992,7 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Discovery-file requests ("Who requests agent discovery files?") | this repo's research, 56 domains on Cloudflare, 2026-10-17 to 10-24, corrected 2026-10-24 | docs/research/who-reads-discovery-files.md |
 | Negotiated markdown requests | GoodBarber's own logs, 2026-09-04 to 09-18, read 2026-10-24 | https://www.goodbarber.com/blog/do-ai-agents-read-markdown-what-two-weeks-of-our-own-server-logs-say-a1622/ |
 | MCP Registry namespaces, DNS and HTTP proof, `mcp-publisher status` | registry docs (preview), read 2026-11-19 | https://modelcontextprotocol.io/registry/authentication |
+| Ora's checks and scoring | check catalog and methodology, scoring version 3, read 2026-11-19 | https://ora.ai/api/checks |
 | Problem details for HTTP APIs (`application/problem+json`) | RFC 9457 | https://www.rfc-editor.org/rfc/rfc9457.html |
 | Organization structured data (`sameAs`, `address`, `contactPoint`) | Search Central, read 2026-11-19 | https://developers.google.com/search/docs/appearance/structured-data/organization |
 | Site names (`WebSite.name` on the homepage) | Search Central, read 2026-11-19 | https://developers.google.com/search/docs/appearance/site-names |
