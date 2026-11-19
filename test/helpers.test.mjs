@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -386,4 +386,10 @@ test('markdownUrl maps a page to its .md URL, the llms.txt proposal\'s way', () 
   assert.equal(markdownUrl('https://example.com/docs/'), 'https://example.com/docs/index.md');
   assert.equal(markdownUrl('https://example.com/docs/api?x=1#y'), 'https://example.com/docs/api.md');
   assert.equal(markdownUrl('not a url'), null);
+});
+
+test('MARKDOWN_LINK finds the proposal\'s [name](url) links, not bare URLs', () => {
+  const count = (t) => [...t.matchAll(MARKDOWN_LINK)].length;
+  assert.equal(count('# Site\n\n## Docs\n\n- [API](https://example.com/api): the reference\n- [MCP](/docs/mcp "MCP")\n'), 2);
+  assert.equal(count('# Site\n\nAPI: https://example.com/api\nMCP: https://example.com/mcp\n'), 0);
 });

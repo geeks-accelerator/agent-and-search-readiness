@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -292,6 +292,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     const linkProblems = [];
     if (broken.length) linkProblems.push(`broken links in llms.txt: ${list(broken)} (${broken.length} of ${sample.length} sampled)`);
     if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${list(redirected)}`);
+    // The proposal's file lists are markdown links; a file of bare URLs gives the tools that parse it nothing.
+    if (ok(llms) && ![...llms.text.matchAll(MARKDOWN_LINK)].length) linkProblems.push('llms.txt has no markdown links: list each page as - [name](url): notes, as the llms.txt proposal does');
     // llms-full.txt is the catalog: every page llms.txt links appears in it, so an agent can choose from one fetch.
     // Pages are the sampled links that answer HTML, besides the homepage; files like /openapi.json are surfaces, not pages.
     let pagesListed = 0;
