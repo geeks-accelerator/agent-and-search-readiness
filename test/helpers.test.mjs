@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -27,7 +27,7 @@ test('skillNameProblem wants a slug that matches the folder and the index entry'
   const url = 'https://example.com/.well-known/agent-skills/adopt-a-akita/SKILL.md';
   assert.equal(skillNameProblem({ name: 'adopt-a-akita', url, entryName: 'adopt-a-akita' }), null);
   assert.equal(skillNameProblem({ name: 'Akita. Adopt an Akita', url, entryName: 'adopt-a-akita' }), 'not a lowercase slug');
-  assert.equal(skillNameProblem({ name: '', url }), 'not a lowercase slug');
+  assert.equal(skillNameProblem({ name: '', url }), 'no name in the frontmatter');
   assert.equal(skillNameProblem({ name: 'akita', url, entryName: 'akita' }), 'folder is adopt-a-akita');
   assert.equal(skillNameProblem({ name: 'adopt-a-akita', url, entryName: 'akita' }), 'index says akita');
 });
@@ -225,16 +225,28 @@ test('linkRels reads every rel of every link', () => {
 });
 
 test('apiPresence: an API that answers, one that is only declared, and none', () => {
-  const none = { openapiSpec: null, apiIndexJson: false, rels: new Map(), catalogJson: null, llmsText: '# Site\n\n- [About](https://example.com/about)' };
+  const hosts = new Set(['example.com']);
+  const links = (text) => llmsLinks(text, 'https://example.com/llms.txt', hosts);
+  const none = { openapiSpec: null, apiIndexJson: false, rels: new Map(), catalogJson: null, llmsLinks: links('# Site\n\n- [About](https://example.com/about)') };
   assert.deepEqual(apiPresence(none), { present: false, answers: false, declared: [] });
   assert.equal(apiPresence({ ...none, openapiSpec: { openapi: '3.1.0' } }).answers, true);
   assert.equal(apiPresence({ ...none, apiIndexJson: true }).present, true);
   // Declared but not answering: the API checks still run, and fail.
-  const declared = apiPresence({ ...none, llmsText: '- [API](https://example.com/openapi.json)', rels: new Map([['service-desc', ['/openapi.json']]]) });
+  const declared = apiPresence({ ...none, llmsLinks: links('- [API](https://example.com/openapi.json)'), rels: new Map([['service-desc', ['/openapi.json']]]) });
   assert.deepEqual(declared, { present: true, answers: false, declared: ['a service-desc Link', 'llms.txt'] });
+  // A sibling site's API, linked from this site's llms.txt, isn't this site's API.
+  assert.equal(apiPresence({ ...none, llmsLinks: links('- Use [the sibling\'s API](https://sibling.example/api/v1) for articles') }).present, false);
   // A service-desc that names something else isn't an API claim; D5 judges it.
   assert.equal(apiPresence({ ...none, rels: new Map([['service-desc', ['/llms.txt']]]) }).present, false);
   assert.equal(apiPresence({ ...none, catalogJson: { linkset: [{ anchor: 'https://example.com/api' }] } }).present, true);
+});
+
+test('declaredOpenapi finds the OpenAPI document a site names, on its own hosts', () => {
+  const hosts = new Set(['example.com', 'www.example.com']);
+  const catalogJson = { linkset: [{ anchor: 'https://example.com/api/v1', 'service-desc': [{ href: 'https://example.com/api/v1/openapi.json' }] }] };
+  assert.deepEqual(declaredOpenapi({ rels: new Map(), catalogJson, llmsLinks: [], base: 'https://example.com', hosts }), ['https://example.com/api/v1/openapi.json']);
+  assert.deepEqual(declaredOpenapi({ rels: new Map([['service-desc', ['/v2/openapi.yaml']]]), catalogJson: null, llmsLinks: ['https://example.com/api/v1/openapi.json', 'https://example.com/about'], base: 'https://example.com', hosts }), ['https://example.com/v2/openapi.yaml', 'https://example.com/api/v1/openapi.json']);
+  assert.deepEqual(declaredOpenapi({ rels: new Map(), catalogJson: { linkset: [{ 'service-desc': [{ href: 'https://other.example/openapi.json' }] }] }, llmsLinks: [], base: 'https://example.com', hosts }), []);
 });
 
 test('missingSections lists headings the page has and its markdown copy lacks', () => {
@@ -367,8 +379,9 @@ test('openapiOps lists every operation with its path parameters; openapiDeref fo
 
 test('skillFile reads the frontmatter name and description, and the body after it', () => {
   const f = skillFile('---\nname: care\ndescription: "Use when the user wants a pet."\n---\n# Care\n\nFeed it.\n');
-  assert.deepEqual(f, { name: 'care', description: 'Use when the user wants a pet.', body: '# Care\n\nFeed it.\n' });
-  assert.deepEqual(skillFile('# No frontmatter'), { name: '', description: '', body: '# No frontmatter' });
+  assert.deepEqual(f, { name: 'care', description: 'Use when the user wants a pet.', body: '# Care\n\nFeed it.\n', frontmatter: true });
+  assert.deepEqual(skillFile('# No frontmatter'), { name: '', description: '', body: '# No frontmatter', frontmatter: false });
+  assert.equal(skillNameProblem({ name: '', url: 'https://example.com/skills/x.md' }), 'no name in the frontmatter');
 });
 
 test('saysWhenToUse finds a when-clause in the description or a When to use heading', () => {

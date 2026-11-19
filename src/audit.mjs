@@ -10,9 +10,9 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi } from './helpers.mjs';
 
-export const VERSION = '2.7.0';
+export const VERSION = '2.7.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -228,7 +228,10 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   const catalogEntries = [...(json(ard)?.entries ?? []), ...(json(aiCatalog)?.entries ?? [])];
   const rels = linkRels(home.headers.get('link'));
   const spec = ok(openapi) ? json(openapi) : null; // the OpenAPI document, parsed once for every check that reads it
-  const api = apiPresence({ openapiSpec: spec, apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson: ok(apiCatalog) ? json(apiCatalog) : null, llmsText: ok(llms) ? llms.text : '' });
+  // llms.txt's links on the site's own hosts: D4 samples them, and they can declare the API.
+  const llmsSiteLinks = ok(llms) ? llmsLinks(llms.text, `${BASE}/llms.txt`, siteHosts) : [];
+  const catalogJson = ok(apiCatalog) ? json(apiCatalog) : null;
+  const api = apiPresence({ openapiSpec: spec, apiIndexJson: ok(apiIndex) && isJson(apiIndex), rels, catalogJson, llmsLinks: llmsSiteLinks });
 
   // ---- D1 robots.txt (required) and D15 AI crawlers and Content-Signal (recommended) ----
   const groups = ok(robots) ? robotsGroups(robots.text) : [];
@@ -281,8 +284,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   {
     const id = 'D4', name = 'llms.txt and llms-full.txt', level = 'required';
     // Agents follow the links in llms.txt, so a sample of the site's own links must answer 200.
-    const links = ok(llms) ? llmsLinks(llms.text, `${BASE}/llms.txt`, siteHosts) : [];
-    const sample = spread(links, 10);
+    const sample = spread(llmsSiteLinks, 10);
     const answers = await mapLimit(sample, limit(4), async (u) => ({ u, r: await get(u) }));
     llmsAnswers = answers;
     // Missing pages, server errors and no answer are broken. A 401, 403 or 405 is an endpoint that
@@ -418,7 +420,9 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   } else {
     {
       const id = 'A1', name = 'OpenAPI 3.1', level = 'required';
-      if (!spec?.openapi) miss(id, name, level, `/openapi.json answered ${openapi.status}`);
+      // A document the site names elsewhere is named in the failure, so the fix is a redirect, not a search.
+      const elsewhere = declaredOpenapi({ rels, catalogJson, llmsLinks: llmsSiteLinks, base: BASE, hosts: siteHosts }).filter((u) => new URL(u).pathname !== '/openapi.json');
+      if (!spec?.openapi) miss(id, name, level, `/openapi.json answered ${openapi.status}${elsewhere.length ? `; the site names its OpenAPI document at ${list(elsewhere.map((u) => u.replace(BASE, '')))}: serve it at /openapi.json too, or redirect there` : ''}`);
       else {
         const deref = openapiDeref(spec);
         // `nested` collects fields whose only description sits inside anyOf, oneOf or allOf.
@@ -543,14 +547,18 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       });
       const unreachable = files.filter((f) => f.status !== 200).map((f) => `${f.label} (${f.status})`);
       const read = files.filter((f) => f.status === 200);
-      const badName = read.map((f) => [f, skillNameProblem(f)]).filter(([, why]) => why).map(([f, why]) => `${f.label} (${why})`);
-      const badDesc = read.filter((f) => !f.description || f.description.length > 1024).map((f) => f.label);
-      const noWhen = read.filter((f) => f.description && !saysWhenToUse(f)).map((f) => f.label);
+      // A file with no frontmatter is one problem, not a missing name and a missing description.
+      const noFrontmatter = read.filter((f) => !f.frontmatter).map((f) => f.label);
+      const withFm = read.filter((f) => f.frontmatter);
+      const badName = withFm.map((f) => [f, skillNameProblem(f)]).filter(([, why]) => why).map(([f, why]) => `${f.label} (${why})`);
+      const badDesc = withFm.filter((f) => !f.description || f.description.length > 1024).map((f) => f.label);
+      const noWhen = withFm.filter((f) => f.description && !saysWhenToUse(f)).map((f) => f.label);
       const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map((f) => f.label);
       const noApi = read.filter((f) => !API_LINK.test(f.text) && !MCP_LINK.test(f.text)).map((f) => f.label);
       const long = read.filter((f) => f.lines > 500).map((f) => `${f.label} (${f.lines} lines)`);
       const problems = [], warns = [];
       if (unreachable.length) problems.push(`skill files that don't load: ${list(unreachable)}`);
+      if (noFrontmatter.length) problems.push(`no frontmatter (the spec puts name and description in a --- block at the top): ${list(noFrontmatter)}`);
       if (badName.length) problems.push(`names that break the spec (a lowercase slug, matching its folder and its index entry): ${list(badName)}`);
       if (badDesc.length) problems.push(`missing or over-long descriptions: ${list(badDesc)}`);
       if (noWhen.length) warns.push(`descriptions that don't say when to use the skill: ${list(noWhen)}`);

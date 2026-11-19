@@ -8,6 +8,7 @@
 //   /old         llms.txt links it; it 301s to /about         -> D4 warns
 //   /privacy     llms.txt links it; llms-full.txt doesn't      -> D4 warns
 //   /mapped      llms.txt links it; it 302s to this server at [::ffff:127.0.0.1] -> refused, D4 warns
+// llms.txt links a sibling site's API, which doesn't give this site one (has_api stays false).
 // robots.txt blocks BadBot entirely, which is stricter than *, so D1 still passes.
 // With { api: true } it also serves an API, its docs, an API catalog and a skills index (apiRoutes below).
 // Everything else is meant to pass. Each request is logged in combined format, for --logs.
@@ -45,7 +46,7 @@ const pages = {
 
 const sitemap = (urls) => `<?xml version="1.0"?><urlset>${urls.map((u, i) => `<url><loc>${D}${u}</loc><lastmod>2026-10-${String((i % 20) + 1).padStart(2, '0')}</lastmod></url>`).join('')}</urlset>`;
 const staticPaths = ['/', '/about', '/privacy', '/docs/guide', '/items', '/brotli'];
-const llms = `# Fixture\n\n> A fixture site for readiness-audit.\n\n- [About](${D}/about)\n- [Guide](${D}/docs/guide)\n- [Old page](${D}/old)\n- [Items](${D}/items)\n- [Privacy](${D}/privacy)\n- [Mapped](${D}/mapped)\n`;
+const llms = `# Fixture\n\n> A fixture site for readiness-audit.\n\n- [About](${D}/about)\n- [Guide](${D}/docs/guide)\n- [Old page](${D}/old)\n- [Items](${D}/items)\n- [Privacy](${D}/privacy)\n- [Mapped](${D}/mapped)\n- For pets, use [the sibling's API](https://sibling.example/api/v1).\n`;
 // The catalog: each page's link and summary, not its full text. It leaves out /privacy.
 const llmsFull = `# Fixture\n\n> A fixture site for readiness-audit.\n\n## Pages\n\n${[['About', '/about'], ['Guide', '/docs/guide'], ['Items', '/items']].map(([t, p]) => `### [${t}](${D}${p})\n\n${pages[p].match(/name="description" content="([^"]+)"/)[1]}\n`).join('\n')}`;
 

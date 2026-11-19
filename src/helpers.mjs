@@ -296,12 +296,13 @@ export function linkRels(header) {
  * llms.txt). A declared API gets the API checks even when nothing answers: claims get checked.
  * Returns { present, answers, declared } with declared naming where the claims are.
  */
-export function apiPresence({ openapiSpec, apiIndexJson, rels, catalogJson, llmsText }) {
+export function apiPresence({ openapiSpec, apiIndexJson, rels, catalogJson, llmsLinks }) {
   const answers = Boolean(openapiSpec?.openapi) || Boolean(apiIndexJson);
   const declared = [];
   if ((rels?.get('service-desc') ?? []).some((h) => /openapi/i.test(h))) declared.push('a service-desc Link');
   if (Array.isArray(catalogJson?.linkset) && catalogJson.linkset.length) declared.push('/.well-known/api-catalog');
-  if (llmsText && API_LINK.test(llmsText)) declared.push('llms.txt');
+  // llmsLinks keeps the site's own hosts, so a sibling's API linked from llms.txt doesn't count.
+  if ((llmsLinks ?? []).some((u) => API_LINK.test(u))) declared.push('llms.txt');
   return { present: answers || declared.length > 0, answers, declared };
 }
 
@@ -311,6 +312,20 @@ export function apiPresence({ openapiSpec, apiIndexJson, rels, catalogJson, llms
  */
 export function catalogItems(doc) {
   return (Array.isArray(doc?.linkset) ? doc.linkset : []).flatMap((c) => [].concat(c?.item ?? [])).map((l) => l?.href).filter((h) => typeof h === 'string' && h);
+}
+
+/**
+ * The OpenAPI documents a site names, on its own hosts: service-desc in its Link header and its API
+ * catalog, then llms.txt links that look like one. Absolute, in that order, without repeats.
+ */
+export function declaredOpenapi({ rels, catalogJson, llmsLinks, base, hosts }) {
+  const hrefs = [
+    ...(rels?.get('service-desc') ?? []),
+    ...(Array.isArray(catalogJson?.linkset) ? catalogJson.linkset : []).flatMap((c) => [].concat(c?.['service-desc'] ?? [])).map((l) => l?.href),
+    ...(llmsLinks ?? []).filter((u) => /openapi/i.test(u)),
+  ];
+  const out = hrefs.map((h) => safeUrl(h ?? '', base)).filter((u) => u && hosts.has(u.hostname) && /openapi|swagger/i.test(u.pathname)).map((u) => u.href);
+  return [...new Set(out)];
 }
 
 /**
@@ -461,13 +476,13 @@ export function formatRecorded(x) {
 
 const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
 
-/** A SKILL.md file: its frontmatter name and description, and the body after the frontmatter. */
+/** A SKILL.md file: its frontmatter name and description, the body after it, and whether it has frontmatter. */
 export function skillFile(text) {
   const t = String(text ?? '');
   const m = t.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   const fm = m?.[1] ?? '';
   const field = (k) => fm.match(new RegExp(`^${k}:\\s*(?:"([^"]*)"|'([^']*)'|(.*))$`, 'm'))?.slice(1).find((v) => v !== undefined)?.trim() ?? '';
-  return { name: field('name'), description: field('description'), body: m ? t.slice(m[0].length) : t };
+  return { name: field('name'), description: field('description'), body: m ? t.slice(m[0].length) : t, frontmatter: Boolean(m) };
 }
 
 /**
@@ -486,7 +501,8 @@ export function saysWhenToUse({ description, body }) {
  * another shape (/skills/<name>) says nothing about the folder.
  */
 export function skillNameProblem({ name, url, entryName }) {
-  if (!SKILL_NAME.test(name ?? '')) return 'not a lowercase slug';
+  if (!name) return 'no name in the frontmatter';
+  if (!SKILL_NAME.test(name)) return 'not a lowercase slug';
   const path = safeUrl(url)?.pathname ?? '';
   const folder = /\/SKILL\.md$/i.test(path) ? decode(path.split('/').slice(-2, -1)[0] ?? '') : '';
   if (folder && folder !== name) return `folder is ${folder}`;

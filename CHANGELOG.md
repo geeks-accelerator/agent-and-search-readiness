@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.1 (2026-11-19)
+
+Three fixes from running 2.7.0 against eleven of our sites. No new checks or warnings.
+
+- **A sibling site's API linked from llms.txt no longer gives a site an API.** `apiPresence()` read every API-looking link in llms.txt, so communities.news, whose llms.txt points to alaskanews.com's API, failed A1, A2 and A7 for an API it doesn't run. It now reads only llms.txt's links on the site's own hosts, the list D4 already samples.
+- **A1 names the OpenAPI document the site declares elsewhere.** alaskanews.com's API catalog and llms.txt name `/api/v1/openapi.json`; A1 said only that `/openapi.json` answered 404. It still fails, as the standard puts the document at `/openapi.json`, and now says where the site's document is and to serve or redirect it there (`declaredOpenapi()`).
+- **S1 says when a skill file has no frontmatter,** as one problem, instead of reporting an empty name as "not a lowercase slug" and a missing description.
+
 ## 2.7.0 (2026-11-19)
 
 From Ora's scans of 17 of our sites, checked against the standard and its sources. Eight new warnings, no new failures. Each warning can lower a score until it's fixed, but none changes the exit code. Built on shared code first, so no check has its own copy of a parser or a probe.
