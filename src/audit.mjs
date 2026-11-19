@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -455,10 +455,13 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
         const repeatNote = repeats.length ? `; ${repeats.length} operation${repeats.length === 1 ? "'s description only repeats its" : "s' descriptions only repeat their"} summary (say when to use ${repeats.length === 1 ? 'it' : 'each'})` : '';
         const respGaps = new Set(ops.flatMap(({ o }) => Object.values(o.responses ?? {}).flatMap((r) => Object.values(deref(r)?.content ?? {}).flatMap((c) => undescribedProps(c.schema)))));
         const respNote = respGaps.size ? `; ${respGaps.size} response field${respGaps.size === 1 ? ' has' : 's have'} no description (see N7)` : '';
+        const errors = untypedErrors(ops, deref);
+        const errorNote = errors.untyped.length ? `; error responses with no schema: ${list(errors.untyped)} (${errors.untyped.length} of ${errors.total}): give them one error object or application/problem+json (RFC 9457)` : '';
         if (!String(spec.openapi).startsWith('3.1')) miss(id, name, level, `OpenAPI ${spec.openapi} (use 3.1)`);
-        else if (noDesc.length) miss(id, name, level, `${noDesc.length} of ${ops.length} operations ${noDesc.length === 1 ? 'has' : 'have'} no description (${list(noDesc.map((x) => x.key))})${repeatNote}${respNote}`);
-        else if (fieldGaps.length) miss(id, name, level, `${fieldGaps.length} request field${fieldGaps.length === 1 ? ' has' : 's have'} no description (${list(fieldGaps)})${variantNote}${repeatNote}${respNote}`);
-        else pass(id, name, level, `OpenAPI ${spec.openapi}; all ${ops.length} operations and their request fields described${repeatNote}${respNote}`);
+        else if (noDesc.length) miss(id, name, level, `${noDesc.length} of ${ops.length} operations ${noDesc.length === 1 ? 'has' : 'have'} no description (${list(noDesc.map((x) => x.key))})${errorNote}${repeatNote}${respNote}`);
+        else if (fieldGaps.length) miss(id, name, level, `${fieldGaps.length} request field${fieldGaps.length === 1 ? ' has' : 's have'} no description (${list(fieldGaps)})${variantNote}${errorNote}${repeatNote}${respNote}`);
+        else if (errors.untyped.length) record(id, name, level, 'warn', `OpenAPI ${spec.openapi}; all ${ops.length} operations and their request fields described${errorNote}${repeatNote}${respNote}`);
+        else pass(id, name, level, `OpenAPI ${spec.openapi}; all ${ops.length} operations and their request fields described, with typed errors${repeatNote}${respNote}`);
       }
     }
     {

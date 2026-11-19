@@ -535,6 +535,17 @@ export function openapiOps(spec) {
 }
 
 /**
+ * The error responses (4xx, 5xx, 4XX, default) an OpenAPI document gives no content schema, as
+ * 'GET /path 404', and how many error responses there are in all. An agent handles the failures it
+ * can see: a shared error object or RFC 9457's application/problem+json.
+ */
+export function untypedErrors(ops, deref) {
+  const errors = ops.flatMap(({ key, o }) => Object.entries(o?.responses ?? {}).filter(([code]) => /^([45](\d\d|xx)|default)$/i.test(code)).map(([code, r]) => [`${key} ${code}`, deref(r)]));
+  const untyped = errors.filter(([, r]) => !Object.values(r?.content ?? {}).some((c) => c?.schema)).map(([label]) => label);
+  return { untyped, total: errors.length };
+}
+
+/**
  * True when a field has no description of its own but one of its anyOf, oneOf
  * or allOf members does: where Zod puts it for `.nullable()` when `.describe()`
  * comes first. `deref` resolves $ref members.

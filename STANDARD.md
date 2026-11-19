@@ -2,7 +2,7 @@
 
 **What it is:** a common standard for making a site findable and usable by AI agents and search engines, built from six projects' own playbooks (animalhouse.ai, inbed.ai, magnifica.family, drifts.bot, achurch.ai, botsmatter.live), checked against the specs ([§16](#16-specs-and-sources)), scored against each live site, and revised after each project's agent reviewed it.
 **Scorecard:** `npx readiness-audit <domain>` (see the [README](README.md))
-**Last verified:** 2026-10-25
+**Last verified:** 2026-11-19
 
 > **Start here**
 > 1. Score your site: `npx readiness-audit <domain>`. It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line, and no dependencies.
@@ -171,6 +171,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - Generated from the same source that validates requests: Zod at animalhouse and inbed, plain JavaScript definitions at botsmatter.
 - Every operation has a description saying when and why to call it. A one-line summary isn't enough, and the scorecard notes descriptions that only repeat the summary. A "When to use" line per operation in your API reference makes a good source, and agents reading the markdown get it too (inbed).
 - Every parameter and request field is described. Response fields too, once you have response schemas (N7).
+- Every 4xx, 5xx and `default` response has a content schema: one shared error object (with the `suggestion` and `next_steps` of A6), or RFC 9457's `application/problem+json`. *Harm prevented:* an agent writing a call from the document can't tell a validation error from a missing key without trying, so it guesses at retries. The scorecard warns with the error responses that have none. In Ora's scans (2026-11-19), animalhouse, drifts and inbed had none.
 - Put each description on the field itself. One inside `anyOf` or `oneOf` counts as missing, because many clients show only the field's own description. Zod puts it there for `.nullable()` when `.describe()` comes first, so call `.describe()` last, after `.optional()` and `.nullable()`.
 - **Done when** the scorecard passes A1 and `npx @redocly/cli lint` passes. Redocly fails public operations that don't declare `security: []` when the spec has a global security scheme. Checking the spec against real responses needs response schemas, so that contract test lives with N7.
 
@@ -975,6 +976,10 @@ Status as of 2026-10-05. Several are drafts, so re-check before relying on a det
 | Rich result reports, URL Inspection API | Search Console Help and API reference, read 2026-10-21 | https://support.google.com/webmasters/answer/7552505 · https://developers.google.com/webmaster-tools/v1/urlInspection.index/UrlInspectionResult |
 | Discovery-file requests ("Who requests agent discovery files?") | this repo's research, 56 domains on Cloudflare, 2026-10-17 to 10-24, corrected 2026-10-24 | docs/research/who-reads-discovery-files.md |
 | Negotiated markdown requests | GoodBarber's own logs, 2026-09-04 to 09-18, read 2026-10-24 | https://www.goodbarber.com/blog/do-ai-agents-read-markdown-what-two-weeks-of-our-own-server-logs-say-a1622/ |
+| Problem details for HTTP APIs (`application/problem+json`) | RFC 9457 | https://www.rfc-editor.org/rfc/rfc9457.html |
+| Organization structured data (`sameAs`, `address`, `contactPoint`) | Search Central, read 2026-11-19 | https://developers.google.com/search/docs/appearance/structured-data/organization |
+| Site names (`WebSite.name` on the homepage) | Search Central, read 2026-11-19 | https://developers.google.com/search/docs/appearance/site-names |
+| Agent Skills `description`: what the skill does and when to use it | specification, read 2026-11-19 | https://agentskills.io/specification |
 | Markdown and llms.txt in agent tasks | Mintlify benchmark, 2026-07-17, read 2026-10-24 | https://www.mintlify.com/blog/llms-txt-agent-benchmark |
 | MCP reference fetch server's `max_length` (default 5,000 characters) | source, read 2026-10-25 | https://github.com/modelcontextprotocol/servers/blob/main/src/fetch/src/mcp_server_fetch/server.py |
 | OpenClaw `web_fetch` limits (`maxChars` default 20,000) | docs and source, read 2026-10-25 | https://docs.openclaw.ai/tools/web-fetch |
