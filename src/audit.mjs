@@ -10,9 +10,9 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi, apiDocLinks } from './helpers.mjs';
 
-export const VERSION = '2.8.0';
+export const VERSION = '2.9.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
@@ -523,11 +523,11 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     }
     {
       const id = 'A5', name = 'API reference as markdown, linked from the homepage', level = 'recommended';
-      // Most agents start at the homepage, and an agent reads what it's pointed at: a link to the docs, the reference or the OpenAPI document.
-      const docLinks = tags(home.text, 'a').map((a) => safeUrl(a.href ?? '', BASE)).filter((u) => u && siteHosts.has(u.hostname) && (API_LINK.test(u.href) || /^\/docs(\/|$)/.test(u.pathname)));
+      // Most agents start at the homepage, and an agent reads what it's pointed at: a link whose path or text names the API, developers or agents.
+      const docLinks = apiDocLinks(home.text, BASE, siteHosts);
       const problems = [];
       if (!(ok(docsMd) && /text\/(markdown|plain)/.test(docsMd.type))) problems.push(`/docs/api.md answered ${docsMd.status} ${ct(docsMd)}`);
-      if (!docLinks.length) problems.push('the homepage links no API docs: link /docs, the API reference or /openapi.json');
+      if (!docLinks.length) problems.push('the homepage links no API docs: link a page whose path or text names the API, developers or agents');
       if (problems.length) miss(id, name, level, problems.join('; '));
       else pass(id, name, level, `/docs/api.md; the homepage links ${new URL(docLinks[0].href).pathname}`);
     }

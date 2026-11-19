@@ -145,6 +145,28 @@ export function tags(html, name) {
   return [...String(html ?? '').matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((m) => attrs(m[0]));
 }
 
+/** Every <a> in the HTML, as its attributes plus text, its content as plain text. */
+export function anchors(html) {
+  return [...String(html ?? '').matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].map((m) => ({ ...attrs(m[0].slice(0, m[0].indexOf('>') + 1)), text: decodeText(m[1].replace(/<[^>]*>/g, ' ')) }));
+}
+
+/**
+ * Words that mark a link as the way to a site's API docs, in its path or its text. A site names the page for its
+ * readers (/developers, /api, /agents), so no one path counts; "docs" alone doesn't either, since a site's docs can be its content.
+ */
+export const API_DOC_WORDS = /\b(apis?|openapi|developers?|agents?)\b/i;
+
+/** The homepage links that lead to the API docs: on the site's hosts, with an API word in the path or the text. */
+export function apiDocLinks(html, base, hosts) {
+  return anchors(html).flatMap((a) => {
+    const u = a.href ? safeUrl(a.href, base) : null;
+    if (!u || !hosts.has(u.hostname)) return [];
+    let path = u.pathname;
+    try { path = decodeURIComponent(path); } catch {}
+    return API_DOC_WORDS.test(path.replace(/[\/._-]+/g, ' ')) || API_DOC_WORDS.test(a.text) ? [u] : [];
+  });
+}
+
 /** The content of the first <meta> whose key attribute (name or property) is val. */
 export function meta(html, key, val) {
   return tags(html, 'meta').find((a) => (a[key] ?? '').toLowerCase() === val)?.content;

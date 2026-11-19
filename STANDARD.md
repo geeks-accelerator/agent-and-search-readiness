@@ -263,7 +263,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - A service with no auth can say so here, or in llms.txt.
 - Serve it as markdown, not as a redirect to an HTML page.
 
-**A5 The API reference as raw markdown** at `/docs/api.md` (inbed, drifts, botsmatter), **linked from the homepage**. Agents don't want the HTML, and most start at the homepage: link the docs, the reference or `/openapi.json` from it. *Harm prevented:* an agent that has to search for the docs finds a lookalike's, or none (in Ora's scans, 2026-11-19, belto, sat-chit-ananda and sitesinthewoods had API docs the homepage didn't link).
+**A5 The API reference as raw markdown** at `/docs/api.md` (inbed, drifts, botsmatter), **linked from the homepage**. Agents don't want the HTML, and most start at the homepage, so link the way to the API from it: a page whose path or link text names the API, developers or agents (`/api`, `/developers`, `/agents`, a footer link reading "Developers"). Name the page for your readers. A site whose docs are its content, such as scripts or lyrics, keeps `/docs` for those, and a link to that content doesn't count. *Harm prevented:* an agent that has to search for the docs finds a lookalike's, or none (in Ora's scans, 2026-11-19, belto, sat-chit-ananda and sitesinthewoods had API docs the homepage didn't link).
 
 **A12 Don't break saved calls.** *Why: agents save calls in scripts and skills and rerun them without rereading the docs.* Make a breaking change in a new version, keep the old one working for a stated time, and say so in the changelog that llms.txt links. A `/v1` prefix isn't needed before then: unprefixed paths are version 1 until the first breaking change.
 

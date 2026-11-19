@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.9.0 (2026-11-19)
+
+A5 finds the homepage's link to the API by what the link says, not by one page name. A site that linked its API docs only as a bare `/docs` with no API word now gets a warning, which can lower its score without changing the exit code.
+
+- **A5 counts a homepage link whose path or text names the API, developers or agents** (`/api`, `/developers`, `/agents`, `/openapi.json`, a link reading "Developers"). A site names the page for its readers: on a meditation site, docs are the scripts and lyrics, so its API sits behind a Developers page.
+- **A link to `/docs` alone no longer counts,** since a site's docs can be its content: achurch.ai's homepage links `/docs/chants` and `/docs/prayers`, which passed A5 before. It passes now through its `/for-agents` link.
+- **Helpers:** `anchors()` reads each link with its text, and `apiDocLinks()` picks the ones that lead to the API docs.
+
 ## 2.8.0 (2026-11-19)
 
 llms-full.txt is optional. D4 now requires llms.txt only: a site without llms-full.txt no longer fails, so some scores rise. Two new warnings for a site that serves one, which can lower a score until fixed without changing the exit code.

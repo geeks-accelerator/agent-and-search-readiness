@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi, anchors, apiDocLinks } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -432,4 +432,14 @@ test('untypedErrors lists 4xx, 5xx and default responses with no content schema'
   const { untyped, total } = untypedErrors(openapiOps(spec), openapiDeref(spec));
   assert.deepEqual(untyped, ['GET /a 404', 'POST /a 4XX', 'POST /a default']);
   assert.equal(total, 4);
+});
+
+test('apiDocLinks finds the homepage links to the API docs by path or text, whatever the site calls them', () => {
+  const hosts = new Set(['example.com', 'www.example.com']);
+  const paths = (html) => apiDocLinks(html, 'https://example.com/', hosts).map((u) => u.pathname);
+  assert.deepEqual(anchors('<a href=/x class="c">For <b>developers</b> &amp; agents</a>'), [{ href: '/x', class: 'c', text: 'For developers & agents' }]);
+  for (const href of ['/developers/', '/developer', '/api', '/api-reference', '/docs/api', '/openapi.json', '/agents', '/for-agents/']) assert.deepEqual(paths(`<a href="${href}">More</a>`), [href], href);
+  for (const text of ['API', 'API docs', 'Developers', 'For agents']) assert.equal(paths(`<a href="/build">${text}</a>`).length, 1, text);
+  // A site's docs can be its content, and words inside other words don't count.
+  for (const html of ['<a href="/docs">Docs</a>', '<a href="/docs/chants">Chants</a>', '<a href="/apiary">Bees</a>', '<a href="https://other.example/api">API</a>', '<a>API</a>']) assert.deepEqual(paths(html), [], html);
 });

@@ -109,6 +109,7 @@ test('with an API and skills, the API and skills checks run', async () => {
   const by = Object.fromEntries(rep.results.map((r) => [r.id, r]));
   assert.equal(rep.has_api, true);
   for (const id of ['A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'S2', 'D5']) assert.equal(by[id].status, 'pass', `${id}: ${by[id].detail}`);
+  assert.match(by.A5.detail, /the homepage links \/developers\/$/);
   // Deliberate problems in the API fixture, each reported where it belongs.
   assert.equal(by.S1.status, 'warn', by.S1.detail);
   assert.match(by.S1.detail, /descriptions that don't say when to use the skill: feed/);
