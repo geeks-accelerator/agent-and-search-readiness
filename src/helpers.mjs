@@ -445,6 +445,15 @@ export function skillFile(text) {
 }
 
 /**
+ * Whether a skill says when to use it (the Agent Skills spec's description: what the skill does
+ * and when to use it): a when-clause in the description, or a "When to use" heading in the body.
+ */
+export function saysWhenToUse({ description, body }) {
+  return /\b(use (this |it )?when|when (the user|a user|you|someone|an agent|asked)|for when)\b/i.test(description ?? '')
+    || /^#{1,6}\s*when to use\b/im.test(body ?? '');
+}
+
+/**
  * Why a SKILL.md's frontmatter name breaks the Agent Skills spec, or null.
  * The name must be a lowercase slug, match its folder when the URL shows one
  * (.../<name>/SKILL.md), and match the name its index entry gives. A URL in

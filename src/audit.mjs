@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -514,6 +514,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       const read = files.filter((f) => f.status === 200);
       const badName = read.map((f) => [f, skillNameProblem(f)]).filter(([, why]) => why).map(([f, why]) => `${f.label} (${why})`);
       const badDesc = read.filter((f) => !f.description || f.description.length > 1024).map((f) => f.label);
+      const noWhen = read.filter((f) => f.description && !saysWhenToUse(f)).map((f) => f.label);
       const noMap = read.filter((f) => !/llms\.txt/.test(f.text)).map((f) => f.label);
       const noApi = read.filter((f) => !API_LINK.test(f.text) && !MCP_LINK.test(f.text)).map((f) => f.label);
       const long = read.filter((f) => f.lines > 500).map((f) => `${f.label} (${f.lines} lines)`);
@@ -521,12 +522,13 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       if (unreachable.length) problems.push(`skill files that don't load: ${list(unreachable)}`);
       if (badName.length) problems.push(`names that break the spec (a lowercase slug, matching its folder and its index entry): ${list(badName)}`);
       if (badDesc.length) problems.push(`missing or over-long descriptions: ${list(badDesc)}`);
+      if (noWhen.length) warns.push(`descriptions that don't say when to use the skill: ${list(noWhen)}`);
       if (noMap.length) warns.push(`no link to llms.txt: ${list(noMap)}`);
       if (noApi.length) warns.push(`no link to the API or MCP reference: ${list(noApi)}`);
       if (long.length) warns.push(`over 500 lines: ${list(long)}`);
       if (problems.length) miss(id, name, level, problems.concat(warns).join('; '));
       else if (warns.length) record(id, name, level, 'warn', warns.join('; '));
-      else pass(id, name, level, `${read.length} sampled skills follow the spec and link llms.txt and the API or MCP reference`);
+      else pass(id, name, level, `${read.length} sampled skills follow the spec, say when to use them, and link llms.txt and the API or MCP reference`);
     }
   }
 

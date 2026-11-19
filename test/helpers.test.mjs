@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -369,4 +369,13 @@ test('skillFile reads the frontmatter name and description, and the body after i
   const f = skillFile('---\nname: care\ndescription: "Use when the user wants a pet."\n---\n# Care\n\nFeed it.\n');
   assert.deepEqual(f, { name: 'care', description: 'Use when the user wants a pet.', body: '# Care\n\nFeed it.\n' });
   assert.deepEqual(skillFile('# No frontmatter'), { name: '', description: '', body: '# No frontmatter' });
+});
+
+test('saysWhenToUse finds a when-clause in the description or a When to use heading', () => {
+  for (const description of ['Use when the user wants a pet.', 'Look after a pet. Use it when someone asks how theirs is doing.', 'For when an agent needs a sandbox.', 'Grounds an agent when the user asks about ethics.']) {
+    assert.equal(saysWhenToUse({ description, body: '' }), true, description);
+  }
+  assert.equal(saysWhenToUse({ description: 'Feeds a pet through the API.', body: '# Feed\n\n## When to use\n\nAt mealtimes.' }), true);
+  assert.equal(saysWhenToUse({ description: 'Feeds a pet through the API.', body: '# Feed\n\nCall POST /feed.' }), false);
+  assert.equal(saysWhenToUse({ description: 'Manage your pet', body: '' }), false);
 });
