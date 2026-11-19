@@ -414,7 +414,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
 
   // ---- A: API ----
   if (!api.present) {
-    for (const [id, name, level] of [['A1', 'OpenAPI 3.1', 'required'], ['A2', 'GET /api index', 'required'], ['A6', 'Errors that teach (401 without a key)', 'required'], ['A7', 'JSON catch-all for wrong API paths', 'required'], ['A3', 'API catalog (RFC 9727)', 'recommended'], ['A4', 'auth.md', 'recommended'], ['A5', 'API reference as markdown', 'recommended']]) skip(id, name, level, 'no public API: /openapi.json and /api don\'t answer, and nothing declares one');
+    for (const [id, name, level] of [['A1', 'OpenAPI 3.1', 'required'], ['A2', 'GET /api index', 'required'], ['A6', 'Errors that teach (401 without a key)', 'required'], ['A7', 'JSON catch-all for wrong API paths', 'required'], ['A3', 'API catalog (RFC 9727)', 'recommended'], ['A4', 'auth.md', 'recommended'], ['A5', 'API reference as markdown, linked from the homepage', 'recommended']]) skip(id, name, level, 'no public API: /openapi.json and /api don\'t answer, and nothing declares one');
   } else {
     {
       const id = 'A1', name = 'OpenAPI 3.1', level = 'required';
@@ -511,9 +511,14 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       else miss(id, name, level, `/auth.md answered ${authMd.status} ${ct(authMd)}`);
     }
     {
-      const id = 'A5', name = 'API reference as markdown', level = 'recommended';
-      if (ok(docsMd) && /text\/(markdown|plain)/.test(docsMd.type)) pass(id, name, level, '/docs/api.md');
-      else miss(id, name, level, `/docs/api.md answered ${docsMd.status} ${ct(docsMd)}`);
+      const id = 'A5', name = 'API reference as markdown, linked from the homepage', level = 'recommended';
+      // Most agents start at the homepage, and an agent reads what it's pointed at: a link to the docs, the reference or the OpenAPI document.
+      const docLinks = tags(home.text, 'a').map((a) => safeUrl(a.href ?? '', BASE)).filter((u) => u && siteHosts.has(u.hostname) && (API_LINK.test(u.href) || /^\/docs(\/|$)/.test(u.pathname)));
+      const problems = [];
+      if (!(ok(docsMd) && /text\/(markdown|plain)/.test(docsMd.type))) problems.push(`/docs/api.md answered ${docsMd.status} ${ct(docsMd)}`);
+      if (!docLinks.length) problems.push('the homepage links no API docs: link /docs, the API reference or /openapi.json');
+      if (problems.length) miss(id, name, level, problems.join('; '));
+      else pass(id, name, level, `/docs/api.md; the homepage links ${new URL(docLinks[0].href).pathname}`);
     }
   }
 

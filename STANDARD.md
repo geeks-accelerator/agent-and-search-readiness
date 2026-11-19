@@ -262,7 +262,7 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - A service with no auth can say so here, or in llms.txt.
 - Serve it as markdown, not as a redirect to an HTML page.
 
-**A5 The API reference as raw markdown** at `/docs/api.md` (inbed, drifts, botsmatter). Agents don't want the HTML.
+**A5 The API reference as raw markdown** at `/docs/api.md` (inbed, drifts, botsmatter), **linked from the homepage**. Agents don't want the HTML, and most start at the homepage: link the docs, the reference or `/openapi.json` from it. *Harm prevented:* an agent that has to search for the docs finds a lookalike's, or none (in Ora's scans, 2026-11-19, belto, sat-chit-ananda and sitesinthewoods had API docs the homepage didn't link).
 
 **A12 Don't break saved calls.** *Why: agents save calls in scripts and skills and rerun them without rereading the docs.* Make a breaking change in a new version, keep the old one working for a stated time, and say so in the changelog that llms.txt links. A `/v1` prefix isn't needed before then: unprefixed paths are version 1 until the first breaking change.
 
@@ -876,7 +876,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | A2 | `GET /api` index | R | agents, traffic | score |
 | A3 | API catalog with the RFC 9727 profile and an `item` link to each API | Rec | hygiene | score |
 | A4 | auth.md | Rec | discovery | score |
-| A5 | API reference as raw markdown | Rec | agents | score |
+| A5 | API reference as raw markdown, linked from the homepage | Rec | agents | score |
 | A6 | `next_steps` and `suggestion` on every response, errors included | R | agents | score (one case), review |
 | A7 | JSON catch-all for wrong API paths | R | agents, traffic | score |
 | A8 | Forgiving input, strict writes, polling support | R | agents | review |

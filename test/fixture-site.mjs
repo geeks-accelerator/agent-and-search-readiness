@@ -136,6 +136,9 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed =
   if (path === '/index.md') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8' }, llms);
   if (wantsMd && path === '/') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, llms);
   if (wantsMd && path === '/docs/guide') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, '# Guide\n\n## Run it\n\nSteps.\n');
+  // The API fixture's homepage links its API reference, the way agents find it.
+  if (api && path === '/') return send(req, res, 200, { ...html, link }, pages['/'].replace('<p>Body text.</p>', '<p>Body text. See the <a href="/docs/api">API reference</a>.</p>'));
+  if (api && path === '/docs/api') return send(req, res, 200, { ...html, link }, page({ path, title: 'Fixture API reference', desc: 'Every operation the fixture API offers, with its parameters, its responses and the errors it can return.' }));
   if (pages[path]) return send(req, res, 200, { ...html, link }, pages[path]);
   if (wantsMd) return send(req, res, 404, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, `# Not found\n\nNothing at ${path}. Start at [llms.txt](${D}/llms.txt).\n`);
   return send(req, res, 404, { 'content-type': 'text/html', vary: 'Accept' }, '<!doctype html><title>Not found</title><h1>Not found</h1>');
