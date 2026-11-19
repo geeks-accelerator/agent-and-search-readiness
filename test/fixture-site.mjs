@@ -97,9 +97,10 @@ function send(req, res, status, headers, body) {
 
 /** Starts the fixture on a free port: { base, log (lines), maxInFlight, close }.
  *  `delay` holds each answer for that many ms, so requests overlap and maxInFlight counts them.
+ *  `full` picks the llms-full.txt: 'catalog', 'none' or 'huge'.
  *  `malformed` adds /malformed (a canonical and og:image that aren't URLs) and /bad-location
  *  (a Location that isn't one) to the sitemap. */
-export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed = false, api = false } = {}) {
+export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed = false, api = false, full = 'catalog' } = {}) {
   const extra = malformed ? ['/malformed', '/bad-location'] : [];
   const log = [];
   let inFlight = 0, maxInFlight = 0;
@@ -125,7 +126,8 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed =
   if (path === '/sitemap-static.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap([...staticPaths, ...extra]));
   if (path === '/sitemap-items.xml') return send(req, res, 200, { 'content-type': 'application/xml' }, sitemap(items.map((id) => `/items/${id}`)));
   if (path === '/llms.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, llms);
-  if (path === '/llms-full.txt') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, llmsFull);
+  // full: 'catalog' (the default), 'none' (no llms-full.txt; it's optional) or 'huge' (more than one fetch reads).
+  if (path === '/llms-full.txt' && full !== 'none') return send(req, res, 200, { 'content-type': 'text/plain; charset=utf-8' }, full === 'huge' ? `${llmsFull}\n## Everything\n\n${'Every word of every page. '.repeat(5000)}` : llmsFull);
   if (path === '/.well-known/security.txt') return send(req, res, 200, { 'content-type': 'text/plain' }, 'Contact: mailto:security@fixture.example\nExpires: 2027-06-01T00:00:00Z\n');
   if (path === '/og.png') return send(req, res, 200, { 'content-type': 'image/png' }, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   if (malformed && path === '/malformed') return send(req, res, 200, html, page({ path, title: 'A malformed fixture page', desc: 'A page whose canonical and share image are not URLs, so the audit has to report them instead of stopping.' }).replace(`href="${D}${path}"`, 'href="http://["').replace(`content="${D}/og.png"`, 'content="http://["'));

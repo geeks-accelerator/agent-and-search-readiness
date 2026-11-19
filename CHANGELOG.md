@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.8.0 (2026-11-19)
+
+llms-full.txt is optional. D4 now requires llms.txt only: a site without llms-full.txt no longer fails, so some scores rise. Two new warnings for a site that serves one, which can lower a score until fixed without changing the exit code.
+
+- **D4 is "llms.txt".** llms-full.txt is a convention the llms.txt proposal doesn't define, and few readers ask for it: across 56 domains in a week, 332 requests on 18 sites, against 1,406 for llms.txt and 4,135 for `.md` pages, mostly from directories and scripts. llms.txt and each page's markdown copy (D8) carry a site; build llms-full.txt only when what agents act on fits in one fetch, such as an API or docs reference.
+- **A served llms-full.txt over 100,000 characters warns,** the most any documented agent fetch tool reads by default (Claude Code's WebFetch). A file of every page's full text gets read in part. It also warns when `/llms-full.txt` answers 200 with HTML: answer 404 when you don't serve one. The check that it lists every page llms.txt links stays.
+- **Tests:** `startFixture({ full })` serves the catalog, none, or one too big to read in one fetch.
+
 ## 2.7.1 (2026-11-19)
 
 Three fixes from running 2.7.0 against eleven of our sites. No new checks or warnings.

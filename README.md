@@ -15,11 +15,11 @@ npx readiness-audit example.com
 It needs Node 22.23.4, 24.22.1 or 26.12.1, or later on the same line (each supported line's current security release), and has no dependencies.
 
 ```
-Agent and search readiness: animalhouse.ai  (readiness-audit v2.7.1, 2026-11-19T19:17Z)
+Agent and search readiness: animalhouse.ai  (readiness-audit v2.8.0, 2026-11-19T19:30Z)
 
 Required
   PASS  D1   robots.txt                           1 group with consistent rules, Sitemap listed
-  WARN  D4   llms.txt and llms-full.txt           llms.txt has no markdown links: list each page as - [name](url): notes, as the llms.txt proposal does
+  WARN  D4   llms.txt                             llms.txt has no markdown links: list each page as - [name](url): notes, as the llms.txt proposal does
   PASS  D12  No false declarations                no OAuth, A2A, plugin or server-card claims without the service behind them
   PASS  W1   Titles and descriptions              29 sampled pages (20 static, 3 templates), all with their own title and description
   PASS  M4   Hosted MCP edge                      both eras, JSON for every Accept, browsers redirected, aliases redirect

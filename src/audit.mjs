@@ -12,10 +12,13 @@ import { isIP } from 'node:net';
 import { request } from './http.mjs';
 import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems, identityLinks, untypedErrors, declaredOpenapi } from './helpers.mjs';
 
-export const VERSION = '2.7.1';
+export const VERSION = '2.8.0';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
 const UA = `readiness-audit/${VERSION} (+${REPO})`;
 const AID_PROTOCOLS = ['mcp', 'a2a', 'openapi', 'grpc', 'graphql', 'websocket', 'local', 'zeroconf', 'ucp'];
+// The most any documented agent fetch tool reads of one file by default: Claude Code's WebFetch
+// (100,000 characters; the MCP reference fetch server reads 5,000, OpenClaw 20,000). STANDARD.md §16.
+const FETCH_CHARS = 100_000;
 const SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json';
 const CARD_SCHEMA = 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json';
 export const LEVELS = ['required', 'recommended', 'next'];
@@ -282,7 +285,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
   // ---- D4 llms.txt ----
   let llmsAnswers = []; // D8 compares one of these pages with its markdown copy
   {
-    const id = 'D4', name = 'llms.txt and llms-full.txt', level = 'required';
+    const id = 'D4', name = 'llms.txt', level = 'required';
     // Agents follow the links in llms.txt, so a sample of the site's own links must answer 200.
     const sample = spread(llmsSiteLinks, 10);
     const answers = await mapLimit(sample, limit(4), async (u) => ({ u, r: await get(u) }));
@@ -297,10 +300,15 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     if (redirected.length) linkProblems.push(`llms.txt links that redirect (link the destination): ${list(redirected)}`);
     // The proposal's file lists are markdown links; a file of bare URLs gives the tools that parse it nothing.
     if (ok(llms) && ![...llms.text.matchAll(MARKDOWN_LINK)].length) linkProblems.push('llms.txt has no markdown links: list each page as - [name](url): notes, as the llms.txt proposal does');
-    // llms-full.txt is the catalog: every page llms.txt links appears in it, so an agent can choose from one fetch.
-    // Pages are the sampled links that answer HTML, besides the homepage; files like /openapi.json are surfaces, not pages.
+    // llms-full.txt is optional: one file an agent reads in one fetch. When a site serves one, it lists
+    // every page llms.txt links and fits in what a fetch reads. Pages are the sampled links that answer
+    // HTML, besides the homepage; files like /openapi.json are surfaces, not pages.
+    const fullServed = ok(llmsFull) && !/text\/html/.test(llmsFull.type);
     let pagesListed = 0;
-    if (ok(llmsFull) && !llmsFull.tooBig) {
+    if (ok(llmsFull) && /text\/html/.test(llmsFull.type)) linkProblems.push('/llms-full.txt answers 200 with HTML: answer 404 when you don\'t serve one');
+    if (fullServed && (llmsFull.tooBig || llmsFull.text.length > FETCH_CHARS)) {
+      linkProblems.push(`llms-full.txt is ${llmsFull.tooBig ? llmsFull.error.replace(/^.*?over /, 'over ') : `${llmsFull.text.length.toLocaleString('en-US')} characters`}, more than an agent's fetch reads at once (${FETCH_CHARS.toLocaleString('en-US')}): keep it to what agents act on, or leave it out and let each page's markdown (D8) carry the rest`);
+    } else if (fullServed) {
       const covered = new Set(llmsLinks(llmsFull.text, `${BASE}/llms-full.txt`, siteHosts).map(norm));
       const pagesLinked = answers.filter(({ u, r }) => ok(r) && /text\/html/.test(r.type) && norm(r.url) === norm(u) && new URL(u).pathname !== '/');
       const uncovered = pagesLinked.filter(({ u }) => !covered.has(norm(u))).map(({ u }) => u.replace(BASE, '') || '/');
@@ -308,9 +316,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       else pagesListed = pagesLinked.length;
     }
     const kb = (r, digits) => (r.tooBig ? r.error.replace(/^.*?over /, 'over ') : `${(r.text.length / 1024).toFixed(digits)} KB`);
-    const sizes = `llms.txt ${kb(llms, 1)}, llms-full.txt ${kb(llmsFull, 0)}`;
+    const sizes = `llms.txt ${kb(llms, 1)}${fullServed ? `, llms-full.txt ${kb(llmsFull, 0)}` : ', no llms-full.txt (optional)'}`;
     if (!ok(llms) || !/^\s*# \S/.test(llms.text)) miss(id, name, level, (ok(llms) ? 'llms.txt has no H1 title on its first line' : `/llms.txt answered ${llms.status}`) + cached(llms));
-    else if (!ok(llmsFull)) miss(id, name, level, `/llms-full.txt missing${cached(llmsFull)}`);
     else if (linkProblems.length) record(id, name, level, 'warn', `${linkProblems.join('; ')}${cached(llms)}`);
     else pass(id, name, level, `${sizes}${sample.length ? `; ${sample.length} sampled link${sample.length === 1 ? '' : 's'} resolve without a redirect` : ''}${pagesListed ? `; llms-full.txt lists the ${pagesListed} sampled page${pagesListed === 1 ? '' : 's'}` : ''}`);
   }

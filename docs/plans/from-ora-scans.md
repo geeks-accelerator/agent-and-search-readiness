@@ -199,5 +199,5 @@ Each site's own agent does these after 2.7.0, from its scorecard:
 - alaskabutter.com: no sitemap, llms.txt or JSON-LD.
 - Markdown on the homepage (D8): sat-chit-ananda, sitesinthewoods, wwjd, distill, botbook, de-amplify, alaskabutter.
 - An ARD catalog (D9): 11 sites.
-- llms.txt over 30 KB: drifts (31 KB) and obviouslynot (51 KB). Move detail to llms-full.txt (D4).
+- llms.txt over 30 KB: drifts (31 KB) and obviouslynot (51 KB). Move detail to each page's markdown copy (D8); llms.txt stays the map (D4).
 - The fixes the new warnings name.

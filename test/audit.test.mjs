@@ -115,3 +115,15 @@ test('with an API and skills, the API and skills checks run', async () => {
   assert.equal(by.A1.status, 'warn', by.A1.detail);
   assert.match(by.A1.detail, /error responses with no schema: GET \/api\/me 401 \(1 of 2\)/);
 });
+
+test('llms-full.txt is optional; one an agent can\'t read in one fetch warns', async () => {
+  const run = async (full) => {
+    const site = await startFixture({ full });
+    try { return (await audit('fixture.example', { base: site.base })).results.find((r) => r.id === 'D4'); } finally { await site.close(); }
+  };
+  const none = await run('none');
+  assert.notEqual(none.status, 'fail', none.detail);
+  assert.doesNotMatch(none.detail, /llms-full/); // nothing to report: the fixture's other D4 problems remain
+  const huge = await run('huge');
+  assert.match(huge.detail, /llms-full\.txt is 1\d\d,\d{3} characters, more than an agent's fetch reads at once \(100,000\)/);
+});
