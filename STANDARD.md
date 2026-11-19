@@ -241,6 +241,17 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - Watch the IETF's AIPREF drafts, which define a successor (a `Content-Usage` rule and header with the vocabulary `train-ai`, `ai-use`, `search` and values `y`/`n`).
 
 **A3 `/.well-known/api-catalog`** (RFC 9727): a linkset served as `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`. Serve it from a route, because a prerendered extensionless file loses its content type (magnifica). *Why: baseline hygiene. It's an RFC and scanners check it, but one crawler asked for it in four days.*
+- List each API with `item` in a context anchored at the catalog itself, and describe each API in a context of its own. RFC 9727 §4.1 says the catalog "MUST include hyperlinks to API endpoints", and an API that appears only as an anchor isn't linked. The scorecard warns when no `item` link is there.
+
+  ```json
+  { "linkset": [
+    { "anchor": "https://example.com/.well-known/api-catalog",
+      "item": [{ "href": "https://example.com/api" }] },
+    { "anchor": "https://example.com/api",
+      "service-desc": [{ "href": "https://example.com/openapi.json", "type": "application/vnd.oai.openapi+json" }],
+      "service-doc": [{ "href": "https://example.com/docs/api", "type": "text/html" }] }
+  ] }
+  ```
 
 **A4 `/auth.md`**: WorkOS's open protocol for telling agents how to register and authenticate (adopted by Cloudflare, Firecrawl and Resend). *Why: scanners check it and it costs little, but it isn't a standard, and nothing requested it in our logs.*
 - A plain markdown file at the root covering discovery, the methods you support, registration, how credentials are used, errors and revocation.
@@ -831,11 +842,11 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | D1 | robots.txt: the same rules for every crawler, Sitemap, side effects disallowed | R | agents, honesty | score |
 | D2 | sitemap.xml with real lastmod dates | R | traffic | score |
 | D3 | Server-rendered pages, real logo and favicons | R | agents, discovery | review |
-| D4 | llms.txt and llms-full.txt, generated, linked from skills and README; llms-full.txt lists every page llms.txt links | R | traffic | score, test |
+| D4 | llms.txt and llms-full.txt, generated, linked from skills and README; llms.txt lists pages as markdown links; llms-full.txt lists every page llms.txt links | R | traffic | score, test |
 | D5 | `Link` headers: service-desc, service-doc, describedby, api-catalog | Rec | discovery | score |
 | D6 | security.txt with Expires once | R | hygiene | score |
 | D7 | JSON 404s for unknown well-known paths (`agent.json` included), JSON 405 with `Allow` on `POST /` | Rec | agents | score |
-| D8 | Markdown for agents with `Vary: Accept` | Rec | traffic | score |
+| D8 | Markdown for agents by `Accept` and at the `.md` URL, with `Vary: Accept` | Rec | traffic | score |
 | D9 | AI catalog at ard.json and ai-catalog.json, with `rel` links | Rec | discovery | score |
 | D10 | One DNS AID record naming a service you run | Rec | discovery | score |
 | D11 | The A2A path: a valid card or a JSON 404 | R | honesty | score |
@@ -856,7 +867,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | W11 | Localization: symmetric hreflang, localized metadata | if true | discovery | review |
 | A1 | OpenAPI 3.1, generated, operations and request fields described | R | agents | score, test |
 | A2 | `GET /api` index | R | agents, traffic | score |
-| A3 | API catalog with the RFC 9727 profile | Rec | hygiene | score |
+| A3 | API catalog with the RFC 9727 profile and an `item` link to each API | Rec | hygiene | score |
 | A4 | auth.md | Rec | discovery | score |
 | A5 | API reference as raw markdown | Rec | agents | score |
 | A6 | `next_steps` and `suggestion` on every response, errors included | R | agents | score (one case), review |
@@ -871,7 +882,7 @@ Level: **R** required where it applies, **Rec** recommended, **N** next level. W
 | M3 | Published to npm, the MCP Registry, Smithery and Glama, one version | R | discovery | test |
 | M4 | Hosted edge: both eras, JSON for every Accept, browser redirect, aliases, logs | R | agents, traffic | score |
 | M5 | Server card at `<endpoint>/server-card`, listed in the AI catalog | Rec | discovery | score |
-| S1 | Spec-compliant SKILL.md files that link llms.txt and the API or MCP reference; triggers name the job; lasting actions say what they do; an agent can follow them through the core loop on its own | R | agents, honesty | score (sample), review |
+| S1 | Spec-compliant SKILL.md files whose descriptions say when to use them, and that link llms.txt and the API or MCP reference; triggers name the job; lasting actions say what they do; an agent can follow them through the core loop on its own | R | agents, honesty | score (sample), review |
 | S2 | Skills discovery index, v0.2.0 | Rec | discovery | score |
 | S3 | ClawHub owners map, per-item skills, slow publishing | Rec | discovery | review |
 | S4 | Plugin bundle for four hosts, generated manifests | Rec | agents | test |

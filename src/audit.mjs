@@ -10,7 +10,7 @@ import { lookup, resolveTxt, Resolver } from 'node:dns/promises';
 import { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 import { request } from './http.mjs';
-import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK } from './helpers.mjs';
+import { SKILL_NAME, sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, spread, samplePages, sharedCardText, API_LINK, MCP_LINK, linkRels, apiPresence, DISCOVERY_FILES, AI_BOTS, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsLeaks, siteDomain, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems } from './helpers.mjs';
 
 export const VERSION = '2.6.1';
 export const REPO = 'https://github.com/geeks-accelerator/agent-and-search-readiness';
@@ -489,8 +489,14 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       const doc = json(apiCatalog);
       if (!ok(apiCatalog) || !Array.isArray(doc?.linkset)) miss(id, name, level, `/.well-known/api-catalog answered ${apiCatalog.status}`);
       else if (!/application\/linkset\+json/.test(apiCatalog.type)) miss(id, name, level, `served as ${ct(apiCatalog)} (must be application/linkset+json)`);
-      else if (!/rfc9727/.test(apiCatalog.type)) miss(id, name, level, 'add profile="https://www.rfc-editor.org/info/rfc9727" to the content type');
-      else pass(id, name, level, 'linkset+json with the RFC 9727 profile');
+      else {
+        const problems = [];
+        if (!/rfc9727/.test(apiCatalog.type)) problems.push('add profile="https://www.rfc-editor.org/info/rfc9727" to the content type');
+        const items = catalogItems(doc);
+        if (!items.length) problems.push('no item link to the API: RFC 9727 says the catalog links to each API, so add a context anchored at the catalog with item links');
+        if (problems.length) miss(id, name, level, problems.join('; '));
+        else pass(id, name, level, `linkset+json with the RFC 9727 profile, linking ${items.length} API${items.length === 1 ? '' : 's'}`);
+      }
     }
     {
       const id = 'A4', name = 'auth.md', level = 'recommended';

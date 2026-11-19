@@ -300,6 +300,14 @@ export function apiPresence({ openapiSpec, apiIndexJson, rels, catalogJson, llms
 }
 
 /**
+ * The APIs an RFC 9727 API catalog links with the item relation. §4.1 says the catalog MUST link to
+ * the API endpoints; an anchor is the context of its links, not a link to it.
+ */
+export function catalogItems(doc) {
+  return (Array.isArray(doc?.linkset) ? doc.linkset : []).flatMap((c) => [].concat(c?.item ?? [])).map((l) => l?.href).filter((h) => typeof h === 'string' && h);
+}
+
+/**
  * The pages the W checks read: every kind of page, not a spread that a big template drowns out.
  * URLs are grouped by template, the first path segment plus the depth (/creatures/a/b and
  * /creatures/c/d share /creatures/*\/*; one-segment pages share /*; / is its own). A group of

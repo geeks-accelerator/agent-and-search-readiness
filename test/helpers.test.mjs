@@ -1,7 +1,7 @@
 // The checks' pure helpers, run without a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK } from '../src/helpers.mjs';
+import { sampleSkillEntries, skillNameProblem, cdnCacheNote, repeatsSummary, hasVariantDescription, parsePrevious, compareResults, formatComparison, spread, samplePages, sharedCardText, linkRels, apiPresence, missingSections, richResultPages, list, norm, pathDepth, decodeText, headings, headingSkips, sitemapEntries, llmsLinks, baseMapper, formatRecorded, safeUrl, robotsGroups, robotsAllowed, robotsLeaks, attrs, tags, meta, jsonLd, openapiDeref, openapiOps, skillFile, saysWhenToUse, markdownUrl, MARKDOWN_LINK, catalogItems } from '../src/helpers.mjs';
 
 test('sampleSkillEntries reads SKILL.md entries and skips archives', () => {
   const list = [
@@ -392,4 +392,15 @@ test('MARKDOWN_LINK finds the proposal\'s [name](url) links, not bare URLs', () 
   const count = (t) => [...t.matchAll(MARKDOWN_LINK)].length;
   assert.equal(count('# Site\n\n## Docs\n\n- [API](https://example.com/api): the reference\n- [MCP](/docs/mcp "MCP")\n'), 2);
   assert.equal(count('# Site\n\nAPI: https://example.com/api\nMCP: https://example.com/mcp\n'), 0);
+});
+
+test('catalogItems lists the APIs an RFC 9727 catalog links with item', () => {
+  const catalog = { linkset: [
+    { anchor: 'https://example.com/.well-known/api-catalog', item: [{ href: 'https://example.com/api' }, { href: '/v2' }] },
+    { anchor: 'https://example.com/api', 'service-desc': [{ href: 'https://example.com/openapi.json' }] },
+  ] };
+  assert.deepEqual(catalogItems(catalog), ['https://example.com/api', '/v2']);
+  // The API as the anchor, with service-desc only: the RFC's MUST wants a hyperlink to the API itself.
+  assert.deepEqual(catalogItems({ linkset: [catalog.linkset[1]] }), []);
+  assert.deepEqual(catalogItems(null), []);
 });
