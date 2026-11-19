@@ -243,3 +243,17 @@ export async function GET() {
 ```
 
 The HTML side needs `Vary: Accept` too, and Next.js drops a `Vary` set in middleware or proxy on App Router pages (tested on 14.2 and 16.3). Add it with a CDN response header rule, or decline that half in writing.
+
+Each page you serve as markdown also answers at its `.md` URL (`/docs/api` at `/docs/api.md`, `/` at `/index.md`), for agents that choose a URL and can't send `Accept`. A path that doesn't exist still answers 404 to `Accept: text/markdown`, with a short markdown body that sends the agent on:
+
+```ts
+// app/not-found.tsx can't change the content type, so answer markdown 404s in proxy.ts
+if (accept.includes('text/markdown') && !(await routeExists(request.nextUrl.pathname))) {
+  return new Response('# Not found\n\nNothing here. Start at [llms.txt](https://example.com/llms.txt).\n', {
+    status: 404,
+    headers: { 'Content-Type': 'text/markdown; charset=utf-8', Vary: 'Accept' },
+  });
+}
+```
+
+`routeExists` is your own lookup, the same one the sitemap reads ([recipe](#the-sitemap-equals-the-routes-t4-w3)).

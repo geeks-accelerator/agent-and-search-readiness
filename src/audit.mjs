@@ -196,7 +196,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
 
   const D = DISCOVERY_FILES;
   const [home, homeMd, robots, sitemap, llms, llmsFull, openapi, apiIndex, apiCatalog, security, authMd, docsMd,
-    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, pageMiss, homeMdUrl, postRoot, legacyCard, wkCard] = await mapLimit([
+    agentCard, ard, aiCatalog, skills, prm, asMeta, aiPlugin, wkMiss, apiMiss, pageMiss, pageMissMd, homeMdUrl, postRoot, legacyCard, wkCard] = await mapLimit([
     () => get('/'),
     () => get('/', { headers: { accept: 'text/markdown' } }),
     () => get(D.robots),
@@ -219,6 +219,7 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     () => get(`/.well-known/no-such-file-${rand}`),
     () => get(`/api/no-such-endpoint-${rand}`, { headers: { accept: 'application/json' } }),
     () => get(`/no-such-page-${rand}`, { headers: { accept: 'text/html' } }),
+    () => get(`/no-such-page-${rand}`, { headers: { accept: 'text/markdown' } }),
     () => get(markdownUrl(`${BASE}/`)),
     () => get('/', { method: 'POST', redirect: 'manual' }),
     () => get(D.legacyCard),
@@ -352,7 +353,8 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
     const id = 'D8', name = 'Markdown for agents', level = 'recommended';
     const varyAccept = (r) => /(^|,)\s*accept\s*(,|$)/i.test(r.headers.get('vary') ?? '');
     // Markdown served as text/markdown, or as text/plain with a markdown heading (as llms.txt often is).
-    const isMarkdown = (r) => ok(r) && (/text\/markdown/.test(r.type) || (/text\/plain/.test(r.type) && /^\s*#/.test(r.text)));
+    const markdownBody = (r) => /text\/markdown/.test(r.type) || (/text\/plain/.test(r.type) && /^\s*#/.test(r.text));
+    const isMarkdown = (r) => ok(r) && markdownBody(r);
     const tokens = homeMd.headers.get('x-markdown-tokens');
     // The homepage's markdown may be llms.txt, so compare a page llms.txt links instead, when it serves markdown.
     const copy = { path: null, gone: [], mdUrl: null };
@@ -370,8 +372,10 @@ export async function audit(domain, { mcpPath = '/mcp', base = null, concurrency
       if (!varyAccept(homeMd) || !varyAccept(home)) problems.push(`Vary: Accept missing on the ${!varyAccept(home) ? 'HTML' : 'markdown'} response`);
       if (copy.gone.length) problems.push(`the markdown copy of ${copy.path} lacks ${copy.gone.length} section${copy.gone.length === 1 ? '' : 's'} the page has: ${list(copy.gone.map((h) => `"${h}"`))}`);
       if (noMdUrl.length) problems.push(`no markdown at the .md URL of ${list(noMdUrl)}`);
+      // A missing page still answers 404, but with markdown that sends the agent somewhere (W3 reports a 200).
+      if ((pageMissMd.status === 404 || pageMissMd.status === 410) && !markdownBody(pageMissMd)) problems.push(`a missing page answers Accept: text/markdown with ${ct(pageMissMd)}: send a short markdown 404 that links llms.txt`);
       if (problems.length) miss(id, name, level, problems.join('; '));
-      else pass(id, name, level, `markdown by Accept and at the .md URL, with Vary: Accept on both${tokens ? `, x-markdown-tokens ${tokens}` : ''}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
+      else pass(id, name, level, `markdown by Accept and at the .md URL, with Vary: Accept on both and a markdown 404${tokens ? `, x-markdown-tokens ${tokens}` : ''}${copy.path ? `; ${copy.path}'s markdown copy has every section` : '; no page llms.txt links serves markdown, so no copy was compared'}`);
     }
   }
 

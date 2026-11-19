@@ -204,6 +204,8 @@ Each item says what it is, why it's at its level, and how you know it's done. Se
 - Next.js drops a `Vary` set in middleware, proxy or `next.config` on App Router pages, static or dynamic, while it keeps the other headers (tested on 14.2 and 16.3). So `Accept` has to reach the HTML from the edge (a CDN response header rule), or decline that half in writing. Send it from the markdown route yourself (animalhouse.ai).
 - A page's markdown copy has the page's sections. The homepage's can be llms.txt instead. *Harm prevented:* agents reading the markdown get a different site than people do. The scorecard compares the headings of one page llms.txt links, when that page serves markdown, and a guard test can compare them all (§11).
 - Make links absolute, and link back to the HTML page as canonical.
+- A missing page still answers 404 to `Accept: text/markdown`, with a short markdown body that links llms.txt. *Harm prevented:* an agent that asked for markdown reads an HTML error page as noise, and its next step is a guess. In Ora's scans (2026-11-19), 14 of 17 of our sites sent HTML. The scorecard warns about an HTML 404 on a site that serves markdown.
+- The scorecard requests the homepage's `.md` URL (`/index.md`) and that of the page it compares, and warns when either isn't markdown.
 - `x-markdown-tokens` is optional. It was Cloudflare's header, with no spec behind it, and Cloudflare stopped sending it on 2026-10-09: agents count tokens themselves.
 - Negotiate in front of prerendered pages too, or they ignore it (magnifica).
 - Whole-corpus indexes help: `/docs/index.md` and `/docs/index.json` (achurch.ai).

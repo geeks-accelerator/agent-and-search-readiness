@@ -137,7 +137,8 @@ export async function startFixture({ allow = 'GET, HEAD', delay = 0, malformed =
   if (wantsMd && path === '/') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, llms);
   if (wantsMd && path === '/docs/guide') return send(req, res, 200, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, '# Guide\n\n## Run it\n\nSteps.\n');
   if (pages[path]) return send(req, res, 200, { ...html, link }, pages[path]);
-  return send(req, res, 404, { 'content-type': 'text/html' }, '<!doctype html><title>Not found</title><h1>Not found</h1>');
+  if (wantsMd) return send(req, res, 404, { 'content-type': 'text/markdown; charset=utf-8', vary: 'Accept' }, `# Not found\n\nNothing at ${path}. Start at [llms.txt](${D}/llms.txt).\n`);
+  return send(req, res, 404, { 'content-type': 'text/html', vary: 'Accept' }, '<!doctype html><title>Not found</title><h1>Not found</h1>');
   };
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   return { base: `http://localhost:${srv.address().port}`, log, get maxInFlight() { return maxInFlight; }, close: () => new Promise((r) => { srv.closeAllConnections(); srv.close(r); }) };
